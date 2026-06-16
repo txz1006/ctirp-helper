@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>产品数据迁移助手</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <h1 class="popup-title">产品数据迁移助手</h1>
+
+    <!-- 模式切换 -->
+    <section class="popup-section">
+      <h2 class="popup-section-title">模式切换</h2>
+      <div class="popup-mode-group">
+        <label class="popup-mode-item">
+          <input type="radio" name="mode" value="auto" checked>
+          <span>自动检测</span>
+        </label>
+        <label class="popup-mode-item">
+          <input type="radio" name="mode" value="domestic">
+          <span>导出模式（国内版）</span>
+        </label>
+        <label class="popup-mode-item">
+          <input type="radio" name="mode" value="international">
+          <span>导入模式（国际版）</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- 页面状态 -->
+    <section class="popup-section">
+      <h2 class="popup-section-title">页面状态</h2>
+      <div class="popup-status">
+        <div class="popup-status-row">
+          <span class="popup-status-label">检测结果</span>
+          <span class="popup-status-value" id="detected-page">--</span>
+        </div>
+        <div class="popup-status-row">
+          <span class="popup-status-label">当前模式</span>
+          <span class="popup-status-value" id="effective-mode">--</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 最近操作 -->
+    <section class="popup-section">
+      <h2 class="popup-section-title">最近操作</h2>
+      <div class="popup-status">
+        <div class="popup-status-row">
+          <span class="popup-status-label">最近导出</span>
+          <span class="popup-status-value" id="last-export">--</span>
+        </div>
+        <div class="popup-status-row">
+          <span class="popup-status-label">最近导入</span>
+          <span class="popup-status-value" id="last-import">--</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- API配置 -->
+    <section class="popup-section">
+      <h2 class="popup-section-title">大模型API配置</h2>
+      <div class="popup-form-group">
+        <label class="popup-label">API类型</label>
+        <select id="api-type" class="popup-select">
+          <option value="openai">OpenAI兼容</option>
+          <option value="anthropic">Anthropic Claude</option>
+        </select>
+      </div>
+      <div class="popup-form-group">
+        <label class="popup-label">API Key</label>
+        <input type="password" id="api-key" class="popup-input" placeholder="sk-...">
+      </div>
+      <div class="popup-form-group">
+        <label class="popup-label">API端点</label>
+        <input type="text" id="api-endpoint" class="popup-input" placeholder="https://api.openai.com/v1/chat/completions">
+      </div>
+      <button id="save-config-btn" class="popup-btn">保存配置</button>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

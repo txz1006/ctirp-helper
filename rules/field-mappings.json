@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "description": "基础信息Tab字段映射配置",
+  "fieldMappings": {
+    "baseInfo.travelDays": {
+      "action": "copy",
+      "label": "行程天数",
+      "internationalKey": "baseInfo.travelDays"
+    },
+    "baseInfo.travelNights": {
+      "action": "copy",
+      "label": "行程晚数",
+      "internationalKey": "baseInfo.travelNights"
+    },
+    "baseInfo.mainName": {
+      "action": "translate",
+      "label": "产品名称",
+      "internationalKey": "baseInfo.mainName"
+    },
+    "baseInfo.subName": {
+      "action": "translate",
+      "label": "副标题",
+      "internationalKey": "baseInfo.subName"
+    },
+    "baseInfo.operationNote": {
+      "action": "translate",
+      "label": "操作说明",
+      "internationalKey": "baseInfo.operationNote"
+    },
+    "baseInfo.masterDepartureCityId": {
+      "action": "searchSelect",
+      "label": "出发城市",
+      "internationalKey": "baseInfo.masterDepartureCityId"
+    },
+    "baseInfo.destinationCityID": {
+      "action": "searchSelect",
+      "label": "目的地城市",
+      "internationalKey": "baseInfo.destinationCityID"
+    },
+    "nameAreas.countryScienc": {
+      "action": "cascader",
+      "label": "国家景区",
+      "internationalKey": "nameAreas.countryScienc"
+    }
+  },
+  "enumMappings": {
+    "三钻/舒适型": "3-Star/Comfort",
+    "四钻/高档型": "4-Star/Premium",
+    "五钻/豪华型": "5-Star/Luxury",
+    "中文": "Chinese",
+    "英文": "English",
+    "中英文": "Chinese & English"
+  }
+}

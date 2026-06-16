@@ -1,0 +1,558 @@
+/* 产品数据迁移助手 - 注入样式 */
+
+/* 导出/导入按钮样式已通过inline style设置，与Ant Design保持一致 */
+
+/* ========== 通知提示 ========== */
+.vtrip-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 24px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 14px;
+  z-index: 99999;
+  opacity: 0;
+  transform: translateX(100px);
+  transition: all 0.3s ease;
+  max-width: 400px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.vtrip-notification-show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.vtrip-notification-success {
+  background-color: #52c41a;
+}
+
+.vtrip-notification-error {
+  background-color: #ff4d4f;
+}
+
+/* ========== 导入浮层面板 ========== */
+#vtrip-import-panel {
+  position: fixed;
+  top: 80px;
+  right: 16px;
+  width: 420px;
+  max-height: calc(100vh - 120px);
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+  z-index: 99998;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  color: #333;
+}
+
+.vtrip-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e8e8e8;
+  background: #fafafa;
+  cursor: move;
+  border-radius: 8px 8px 0 0;
+  user-select: none;
+}
+
+.vtrip-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.vtrip-panel-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #999;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.vtrip-panel-close:hover {
+  color: #333;
+}
+
+.vtrip-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.vtrip-panel-section {
+  margin-bottom: 16px;
+}
+
+.vtrip-panel-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.vtrip-panel-textarea {
+  width: 100%;
+  height: 120px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 12px;
+  font-family: monospace;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.vtrip-panel-textarea:focus {
+  border-color: #40a9ff;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.vtrip-panel-message {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+  color: #0050b3;
+  font-size: 12px;
+}
+
+/* ========== 按钮 ========== */
+.vtrip-btn {
+  display: inline-block;
+  padding: 5px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.vtrip-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vtrip-btn-primary {
+  background: #247DFF;
+  border-color: #247DFF;
+  color: #fff;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.vtrip-btn-primary:hover:not(:disabled) {
+  background: #4096ff;
+  border-color: #4096ff;
+}
+
+.vtrip-btn-secondary {
+  background: #fff;
+  border-color: #d9d9d9;
+}
+
+.vtrip-btn-secondary:hover:not(:disabled) {
+  border-color: #4096ff;
+  color: #4096ff;
+}
+
+/* ========== 预览区 ========== */
+.vtrip-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #01193B;
+}
+
+.vtrip-preview-group {
+  font-size: 13px;
+  font-weight: 600;
+  color: #01193B;
+  margin: 12px 0 6px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.vtrip-preview-group:first-child {
+  margin-top: 0;
+}
+
+.vtrip-preview-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.vtrip-preview-field-filtered {
+  background: #fff1f0;
+}
+
+.vtrip-preview-filter-wrap {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: #ff4d4f;
+  white-space: nowrap;
+}
+
+.vtrip-preview-label {
+  flex: 0 0 80px;
+  font-size: 12px;
+  color: #808C9D;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vtrip-preview-input {
+  flex: 1;
+  min-width: 80px;
+  padding: 3px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.vtrip-preview-default {
+  flex: 0 0 90px;
+  min-width: 70px;
+  padding: 3px 8px;
+  border: 1px solid #ffd591;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fffaf0;
+}
+
+.vtrip-preview-input:focus {
+  border-color: #40a9ff;
+  outline: none;
+}
+
+.vtrip-preview-tag {
+  flex: 0 0 auto;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.vtrip-preview-tag.auto {
+  background: #f6ffed;
+  color: #52c41a;
+  border: 1px solid #b7eb8f;
+}
+
+.vtrip-preview-tag.aiTranslation {
+  background: #e6f7ff;
+  color: #1890ff;
+  border: 1px solid #91d5ff;
+}
+
+.vtrip-preview-tag.translationFailed {
+  background: #fff2e8;
+  color: #fa8c16;
+  border: 1px solid #ffd591;
+}
+
+.vtrip-preview-tag.needsTranslation {
+  background: #fff7e6;
+  color: #d48806;
+  border: 1px solid #ffe58f;
+}
+
+.vtrip-preview-tag.defaultValue {
+  background: #fffbe6;
+  color: #d4a106;
+  border: 1px solid #ffe58f;
+}
+
+/* ========== 填写进度 ========== */
+.vtrip-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.vtrip-progress-fill {
+  height: 100%;
+  background: #247DFF;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  width: 0;
+}
+
+.vtrip-progress-text {
+  font-size: 12px;
+  color: #808C9D;
+  margin-bottom: 8px;
+}
+
+.vtrip-result-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.vtrip-result-item {
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.vtrip-result-item.success {
+  color: #52c41a;
+}
+
+.vtrip-result-item.skipped {
+  color: #fa8c16;
+}
+
+.vtrip-result-item.failed {
+  color: #ff4d4f;
+}
+
+/* ========== 验证报告 ========== */
+.vtrip-verify-summary {
+  font-size: 13px;
+  margin-bottom: 8px;
+  padding: 8px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.vtrip-verify-mismatch {
+  font-size: 12px;
+  color: #ff4d4f;
+  padding: 4px 0;
+}
+
+.vtrip-verify-skipped {
+  font-size: 12px;
+  color: #fa8c16;
+  padding: 4px 0;
+}
+
+/* ========== 匹配预览 ========== */
+.vtrip-match-stat {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.vtrip-match-stat-item {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.vtrip-stat-matched {
+  color: #52c41a;
+}
+
+.vtrip-stat-unmatched {
+  color: #ff4d4f;
+}
+
+.vtrip-stat-notarget {
+  color: #999;
+}
+
+.vtrip-match-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 10px 0 6px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.vtrip-match-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.vtrip-match-label {
+  flex: 0 0 80px;
+  color: #808C9D;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 20px;
+}
+
+.vtrip-match-empty {
+  padding: 12px;
+  color: #52c41a;
+  text-align: center;
+  font-size: 13px;
+}
+
+.vtrip-match-matched-panel {
+  margin-top: 12px;
+  border: 1px dashed #bfbfbf;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.vtrip-match-matched-panel > summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.vtrip-match-matched-panel > summary::marker,
+.vtrip-match-matched-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.vtrip-match-matched-panel > summary::before {
+  content: '▶ ';
+  font-size: 10px;
+  margin-right: 4px;
+}
+
+.vtrip-match-matched-panel[open] > summary::before {
+  content: '▼ ';
+}
+
+.vtrip-match-values {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.vtrip-match-current {
+  color: #999;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vtrip-match-arrow {
+  color: #bbb;
+  font-weight: bold;
+}
+
+.vtrip-match-import {
+  color: #247DFF;
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vtrip-match-matched {
+  background: #f6ffed;
+  border-radius: 3px;
+  padding: 4px 6px;
+}
+
+.vtrip-match-unmatched {
+  background: #fff1f0;
+  border-radius: 3px;
+  padding: 4px 6px;
+}
+
+.vtrip-match-notarget {
+  background: #fafafa;
+  border-radius: 3px;
+  padding: 4px 6px;
+}
+
+.vtrip-match-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* ========== 页面叠加预览label ========== */
+.vtrip-overlay-label {
+  position: absolute;
+  top: -20px;
+  left: 0;
+  z-index: 9999;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 2px 6px;
+  border-radius: 4px 4px 0 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.vtrip-overlay-matched {
+  background: #52c41a;
+  color: #fff;
+}
+
+.vtrip-overlay-unmatched {
+  background: #ff4d4f;
+  color: #fff;
+}
+
+.vtrip-bind-field-btn {
+  border: 1px solid #ff4d4f;
+  background: #fff1f0;
+  color: #ff4d4f;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.vtrip-reset-binding-btn {
+  border: 1px solid #1890ff;
+  background: #e6f7ff;
+  color: #1890ff;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 6px;
+}
+
+.vtrip-reset-binding-btn:hover {
+  background: #bae7ff;
+  border-color: #40a9ff;
+}
+
+.vtrip-bind-field-btn:hover {
+  background: #ffa39e;
+  border-color: #ff7875;
+}
+
+.vtrip-binding-mode .ant-form-item {
+  cursor: crosshair;
+}
+
+.vtrip-binding-mode .ant-form-item:hover {
+  outline: 2px dashed #ff4d4f;
+  outline-offset: 2px;
+}

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>调试：字段提取测试</title>
+  <link rel="stylesheet" href="https://unpkg.com/antd@3.26.20/dist/antd.min.css">
+  <style>
+    body { padding: 20px; font-family: sans-serif; }
+    .content-card { margin-bottom: 20px; border: 1px solid #d9d9d9; border-radius: 4px; }
+    .content-cardtitle-text { padding: 12px 16px; font-weight: 600; background: #fafafa; }
+    .content-cardbody { padding: 16px; }
+    .mb16 { margin-bottom: 16px; }
+    .info-circle { margin-left: 4px; color: #1890ff; }
+    #debug-output { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 4px; max-height: 400px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <h1>调试：字段提取测试</h1>
+  <button onclick="testExtraction()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">手动测试提取</button>
+
+  <div class="content-card">
+    <div class="content-cardtitle-text">预订设置</div>
+    <div class="content-cardbody">
+
+      <!-- 地接社名称 -->
+      <div class="ant-row ant-form-item mb16">
+        <div class="ant-col ant-col-12 ant-form-item-label">
+          <label for="bookingControls.localInfoIds" class="ant-form-item-required">
+            <span>地接社名称<i class="info-circle">ℹ️</i></span>
+          </label>
+        </div>
+        <div class="ant-col ant-col-12 ant-form-item-control-wrapper">
+          <div class="ant-form-item-control has-success">
+            <span class="ant-form-item-children">
+              <div id="bookingControls.localInfoIds" class="ant-select ant-select-enabled" style="width: 100%;">
+                <div class="ant-select-selection ant-select-selection--multiple">
+                  <div class="ant-select-selection__rendered">
+                    <ul>
+                      <li class="ant-select-selection__choice" title="阅遍文化旅游(北京)有限公司成都分公司">
+                        <div class="ant-select-selection__choice__content">阅遍文化旅游(北京)有限公司成都分公司</div>
+                      </li>
+                      <li class="ant-select-search ant-select-search--inline">
+                        <div class="ant-select-search__field__wrap">
+                          <input id="bookingControls.localInfoIds" autocomplete="off" class="ant-select-search__field" value="">
+                        </div>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 对客展示紧急联系人 -->
+      <div class="ant-row ant-form-item mb16">
+        <div class="ant-col ant-col-4 ant-form-item-label">
+          <label for="bookingControls.isPublicEmergencyContact" title="对客展示紧急联系人">对客展示紧急联系人</label>
+        </div>
+        <div class="ant-col ant-form-item-control-wrapper">
+          <div class="ant-form-item-control has-success">
+            <span class="ant-form-item-children">
+              <div class="ant-radio-group" id="bookingControls.isPublicEmergencyContact">
+                <label class="ant-radio-wrapper ant-radio-wrapper-checked">
+                  <span class="ant-radio ant-radio-checked">
+                    <input type="radio" class="ant-radio-input" value="T" checked="">
+                  </span>
+                  <span>是</span>
+                </label>
+                <label class="ant-radio-wrapper">
+                  <span class="ant-radio">
+                    <input type="radio" class="ant-radio-input" value="F">
+                  </span>
+                  <span>否</span>
+                </label>
+              </div>
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="debug-output"></div>
+
+  <script>
+    function testExtraction() {
+      const output = document.getElementById('debug-output');
+      output.innerHTML = '<h3>提取结果：</h3>';
+
+      const formItems = document.querySelectorAll('.ant-row.ant-form-item.mb16');
+
+      formItems.forEach((item, index) => {
+        const labelEl = item.querySelector('.ant-form-item-label label');
+        const controlWrapper = item.querySelector('.ant-form-item-control');
+
+        if (!labelEl || !controlWrapper) {
+          output.innerHTML += `<p><strong>字段 ${index + 1}:</strong> 未找到 label 或 control</p>`;
+          return;
+        }
+
+        const labelText = labelEl.textContent.trim();
+        const labelFor = labelEl.getAttribute('for') || '';
+
+        // 检测控件类型
+        const multiSelect = controlWrapper.querySelector('.ant-select-selection--multiple');
+        const radioGroup = controlWrapper.querySelector('.ant-radio-group');
+        const radioChecked = controlWrapper.querySelector('input[type="radio"]:checked');
+
+        let info = `<div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0; border-radius: 4px;">`;
+        info += `<p><strong>字段 ${index + 1}:</strong></p>`;
+        info += `<p>Label文本: "${labelText}"</p>`;
+        info += `<p>Label for: "${labelFor}"</p>`;
+
+        if (multiSelect) {
+          const choices = controlWrapper.querySelectorAll('.ant-select-selection__choice');
+          const texts = Array.from(choices).map(c => {
+            const content = c.querySelector('.ant-select-selection__choice__content');
+            return content ? content.textContent.trim() : '';
+          });
+          info += `<p>控件类型: <strong>multiSearchSelect</strong></p>`;
+          info += `<p>已选项: ${JSON.stringify(texts)}</p>`;
+        }
+
+        if (radioGroup) {
+          info += `<p>控件类型: <strong>radio</strong></p>`;
+          info += `<p>Radio Group ID: "${radioGroup.id}"</p>`;
+          if (radioChecked) {
+            info += `<p>选中值: "${radioChecked.value}"</p>`;
+          } else {
+            info += `<p>选中值: 未找到选中项</p>`;
+          }
+        }
+
+        info += `</div>`;
+        output.innerHTML += info;
+      });
+    }
+  </script>
+</body>
+</html>

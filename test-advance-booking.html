@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>提前预订控件测试</title>
+  <link rel="stylesheet" href="https://unpkg.com/antd@3.26.20/dist/antd.min.css">
+  <style>
+    body { padding: 20px; font-family: sans-serif; }
+    .content-card { margin-bottom: 20px; border: 1px solid #d9d9d9; border-radius: 4px; }
+    .content-cardtitle-text { padding: 12px 16px; font-weight: 600; background: #fafafa; }
+    .content-cardbody { padding: 16px; }
+    .mb16 { margin-bottom: 16px; }
+    .nodisplay { display: none; }
+    .publicTip {
+      margin-top: 8px;
+      color: #999;
+      font-size: 12px;
+      line-height: 1.5;
+      padding: 8px;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>提前预订控件测试页面</h1>
+  <p>用于测试插件能否正确提取提前预订字段（只提取控件数据，跳过说明性文本）</p>
+
+  <div class="content-card">
+    <div class="content-cardtitle-text">预订设置</div>
+    <div class="content-cardbody">
+
+      <!-- 提前预订（混合控件：隐藏select + inputNumber + timePicker + 说明文本） -->
+      <div class="ant-row ant-form-item mb16">
+        <div class="ant-col ant-col-4 ant-form-item-label">
+          <label for="bookingControls.advanceBooking" class="ant-form-item-required" title="提前预订">提前预订</label>
+        </div>
+        <div class="ant-col ant-col-16 ant-form-item-control-wrapper">
+          <div class="ant-form-item-control has-success">
+            <span class="ant-form-item-children">
+              <!-- 隐藏的时区选择器（应被跳过） -->
+              <div class="nodisplay ant-select ant-select-enabled" style="margin-right: 10px;">
+                <div class="ant-select-selection ant-select-selection--single">
+                  <div class="ant-select-selection__rendered">
+                    <div class="ant-select-selection-selected-value" title="(UTC+08:00)北京时间">(UTC+08:00)北京时间</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 可见的天数输入框 -->
+              <div class="ant-input-number" style="display: inline-block; margin-bottom: 0px; width: 65px;">
+                <div class="ant-input-number-input-wrap">
+                  <input placeholder="请输入" class="ant-input-number-input" autocomplete="off" min="0" step="1" value="2">
+                </div>
+              </div>
+              <span style="margin: 0px 8px 0px 4px;">天</span>
+
+              <!-- 时间选择器 -->
+              <span class="ant-time-picker" style="width: 85px;">
+                <input class="ant-time-picker-input" type="text" placeholder="请选择" value="18:00">
+              </span>
+              <span style="margin-left: 4px;">前可订</span>
+
+              <!-- 说明文本（应被跳过） -->
+              <div class="publicTip">假设今天为6月1号，设置提前2天，18：00前可订，则表示客人在今天18:00前可以预订到6月3号出发的产品，在今天18:00后能订到6月4号出发的产品。若客人预订时的时区和设置时区不同，系统会自动转换。由携程大数据统计，客户下单时间高峰时间为晚上，建议设置较晚预订时间点，如22:00。</div>
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="margin-top: 30px; padding: 20px; background: #e6f7ff; border: 1px solid #91d5ff; border-radius: 4px;">
+    <h3>预期导出结果：</h3>
+    <pre style="background: #fff; padding: 12px; border-radius: 4px; overflow-x: auto;">
+{
+  "提前预订": {
+    "domKey": "bookingControls.advanceBooking",
+    "label": "提前预订",
+    "fieldType": "mixedGroup",
+    "value": {
+      "parts": [
+        { "type": "inputNumber", "value": 2 },
+        { "type": "separator", "text": "天" },
+        { "type": "timePicker", "value": "18:00" },
+        { "type": "separator", "text": "前可订" }
+      ]
+    }
+  }
+}
+    </pre>
+    <h4>关键点：</h4>
+    <ul>
+      <li>✅ 隐藏的时区选择器被跳过</li>
+      <li>✅ 只提取了 4 个部分：inputNumber、separator(天)、timePicker、separator(前可订)</li>
+      <li>✅ publicTip 说明文本被跳过</li>
+      <li>❌ <strong>不应该包含</strong>："假设今天为6月1号..." 的长文本</li>
+    </ul>
+  </div>
+
+  <script>
+    console.log('测试页面已加载，请在浏览器中安装插件后测试导出功能');
+  </script>
+</body>
+</html>

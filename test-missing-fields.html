@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>地接社和紧急联系人测试</title>
+  <link rel="stylesheet" href="https://unpkg.com/antd@3.26.20/dist/antd.min.css">
+  <style>
+    body { padding: 20px; font-family: sans-serif; }
+    .content-card { margin-bottom: 20px; border: 1px solid #d9d9d9; border-radius: 4px; }
+    .content-cardtitle-text { padding: 12px 16px; font-weight: 600; background: #fafafa; }
+    .content-cardbody { padding: 16px; }
+    .mb16 { margin-bottom: 16px; }
+    .info-circle { margin-left: 4px; color: #1890ff; cursor: help; }
+    .publicTip { margin-top: 8px; color: #999; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>地接社和紧急联系人测试</h1>
+
+  <div class="content-card">
+    <div class="content-cardtitle-text">预订设置</div>
+    <div class="content-cardbody">
+
+      <!-- 测试1: 地接社名称（多选搜索下拉框） -->
+      <div class="ant-row ant-form-item mb16">
+        <div class="ant-col ant-col-12 ant-form-item-label">
+          <label for="bookingControls.localInfoIds" class="ant-form-item-required" title="">
+            <span>地接社名称
+              <i aria-label="图标: info-circle" class="anticon anticon-info-circle info-circle">ℹ️</i>
+            </span>
+          </label>
+        </div>
+        <div class="ant-col ant-col-12 ant-form-item-control-wrapper">
+          <div class="ant-form-item-control has-success">
+            <span class="ant-form-item-children">
+              <div id="bookingControls.localInfoIds" class="ant-select ant-select-enabled ant-select-allow-clear" style="width: 100%;">
+                <div class="ant-select-selection ant-select-selection--multiple">
+                  <div class="ant-select-selection__rendered">
+                    <ul>
+                      <li class="ant-select-selection__choice" title="阅遍文化旅游(北京)有限公司成都分公司">
+                        <div class="ant-select-selection__choice__content">阅遍文化旅游(北京)有限公司成都分公司</div>
+                      </li>
+                      <li class="ant-select-search ant-select-search--inline">
+                        <div class="ant-select-search__field__wrap">
+                          <input id="bookingControls.localInfoIds" autocomplete="off" class="ant-select-search__field" value="">
+                        </div>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 测试2: 对客展示紧急联系人（单选按钮组） -->
+      <div class="ant-row ant-form-item mb16">
+        <div class="ant-col ant-col-4 ant-form-item-label">
+          <label for="bookingControls.isPublicEmergencyContact" class="" title="对客展示紧急联系人">对客展示紧急联系人</label>
+        </div>
+        <div class="ant-col ant-form-item-control-wrapper ant-col-xs-20 ant-col-sm-20 ant-col-md-16 ant-col-xl-16 ant-col-xxl-12">
+          <div class="ant-form-item-control has-success">
+            <span class="ant-form-item-children">
+              <div class="ant-radio-group ant-radio-group-outline" id="bookingControls.isPublicEmergencyContact">
+                <label class="ant-radio-wrapper ant-radio-wrapper-checked">
+                  <span class="ant-radio ant-radio-checked">
+                    <input type="radio" class="ant-radio-input" value="T" checked="">
+                    <span class="ant-radio-inner"></span>
+                  </span>
+                  <span>是</span>
+                </label>
+                <label class="ant-radio-wrapper">
+                  <span class="ant-radio">
+                    <input type="radio" class="ant-radio-input" value="F">
+                    <span class="ant-radio-inner"></span>
+                  </span>
+                  <span>否</span>
+                </label>
+              </div>
+              <div class="publicTip"></div>
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="margin-top: 30px; padding: 20px; background: #e6f7ff; border: 1px solid #91d5ff; border-radius: 4px;">
+    <h3>预期导出结果：</h3>
+    <pre style="background: #fff; padding: 12px; border-radius: 4px; overflow-x: auto;">
+{
+  "地接社名称": {
+    "domKey": "bookingControls.localInfoIds",
+    "label": "地接社名称",
+    "fieldType": "multiSearchSelect",
+    "value": {
+      "text": ["阅遍文化旅游(北京)有限公司成都分公司"],
+      "id": "bookingControls.localInfoIds"
+    }
+  },
+  "对客展示紧急联系人": {
+    "domKey": "bookingControls.isPublicEmergencyContact",
+    "label": "对客展示紧急联系人",
+    "fieldType": "radio",
+    "value": "T"
+  }
+}
+    </pre>
+  </div>
+
+  <script>
+    console.log('测试页面已加载，请测试导出功能');
+  </script>
+</body>
+</html>
