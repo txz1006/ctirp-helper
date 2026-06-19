@@ -55,38 +55,41 @@
    * @param {'export'|'import'} type
    */
   function _tryInjectButton(type) {
-    const footer = document.querySelector('.maincontent-bottomfooter > div');
-    if (footer) {
-      _retryCount = 0;
-      if (type === 'export') {
-        _injectExportButton(footer);
-      } else {
-        _injectImportButton(footer);
-      }
-      return;
-    }
+    // 统一使用浮动按钮容器，确保所有页面体验一致
+    console.log('[Main] 使用浮动按钮容器');
+    _createFloatingButtonContainer(type);
+  }
 
-    // footer未找到，启动重试
-    if (_retryCount >= MAX_RETRIES) return;
+  /**
+   * 创建浮动按钮容器（当找不到标准 footer 时）
+   * @param {'export'|'import'} type
+   */
+  function _createFloatingButtonContainer(type) {
+    // 移除旧的浮动容器
+    const oldContainer = document.getElementById('vtrip-floating-buttons');
+    if (oldContainer) oldContainer.remove();
 
-    if (!_retryTimer) {
-      _retryTimer = setInterval(() => {
-        _retryCount++;
-        const f = document.querySelector('.maincontent-bottomfooter > div');
-        if (f) {
-          clearInterval(_retryTimer);
-          _retryTimer = null;
-          _retryCount = 0;
-          if (type === 'export') {
-            _injectExportButton(f);
-          } else {
-            _injectImportButton(f);
-          }
-        } else if (_retryCount >= MAX_RETRIES) {
-          clearInterval(_retryTimer);
-          _retryTimer = null;
-        }
-      }, RETRY_INTERVAL);
+    const container = document.createElement('div');
+    container.id = 'vtrip-floating-buttons';
+    container.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 9999;
+      display: flex;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    `;
+
+    document.body.appendChild(container);
+
+    if (type === 'export') {
+      _injectExportButton(container);
+    } else {
+      _injectImportButton(container);
     }
   }
 
@@ -101,10 +104,30 @@
     btn.type = 'button';
     btn.className = 'ant-btn ant-btn-primary';
     btn.style.cssText = 'background-color: #ff6600; margin-left: 8px; border-color: #ff6600;';
-    btn.innerHTML = '<span>导出数据</span>';
+    btn.innerHTML = '<span>📤 导出数据</span>';
     btn.addEventListener('click', _handleExport);
 
+    // 保存为模版按钮
+    const saveBtn = document.createElement('button');
+    saveBtn.id = 'vtrip-save-template-btn';
+    saveBtn.type = 'button';
+    saveBtn.className = 'ant-btn';
+    saveBtn.style.cssText = 'background-color: #fff; margin-left: 8px; border-color: #d9d9d9; color: #333;';
+    saveBtn.innerHTML = '<span>💾 保存为模版</span>';
+    saveBtn.addEventListener('click', _handleSaveTemplate);
+
+    // 模版管理按钮
+    const manageBtn = document.createElement('button');
+    manageBtn.id = 'vtrip-manage-template-btn';
+    manageBtn.type = 'button';
+    manageBtn.className = 'ant-btn';
+    manageBtn.style.cssText = 'background-color: #fff; margin-left: 8px; border-color: #d9d9d9; color: #333;';
+    manageBtn.innerHTML = '<span>📋 模版管理</span>';
+    manageBtn.addEventListener('click', _handleManageTemplates);
+
     footer.appendChild(btn);
+    footer.appendChild(saveBtn);
+    footer.appendChild(manageBtn);
   }
 
   /**
@@ -131,10 +154,24 @@
     const exportBtn = document.getElementById('vtrip-export-btn');
     if (exportBtn) exportBtn.remove();
 
+    const saveBtn = document.getElementById('vtrip-save-template-btn');
+    if (saveBtn) saveBtn.remove();
+
+    const manageBtn = document.getElementById('vtrip-manage-template-btn');
+    if (manageBtn) manageBtn.remove();
+
     const importBtn = document.getElementById('vtrip-import-btn');
     if (importBtn) importBtn.remove();
 
+    // 移除浮动按钮容器
+    const floatingContainer = document.getElementById('vtrip-floating-buttons');
+    if (floatingContainer) floatingContainer.remove();
+
     ImportPanel.destroy();
+
+    if (window.TemplateManagementPanel) {
+      TemplateManagementPanel.close();
+    }
   }
 
   /**
@@ -167,6 +204,39 @@
   }
 
   /**
+   * 处理保存模版点击
+   */
+  async function _handleSaveTemplate() {
+    if (!window.SaveTemplateDialog) {
+      _showNotification('模版功能未加载，请刷新页面后重试', 'error');
+      return;
+    }
+
+    try {
+      const result = await SaveTemplateDialog.show();
+      if (result) {
+        // 用户保存成功（已在对话框中显示提示）
+        console.log('[Main] 模版保存成功:', result);
+      }
+    } catch (error) {
+      console.error('[Main] 保存模版失败:', error);
+      _showNotification(`保存失败：${error.message}`, 'error');
+    }
+  }
+
+  /**
+   * 处理模版管理点击
+   */
+  function _handleManageTemplates() {
+    if (!window.TemplateManagementPanel) {
+      _showNotification('模版管理功能未加载，请刷新页面后重试', 'error');
+      return;
+    }
+
+    TemplateManagementPanel.show();
+  }
+
+  /**
    * 显示通知提示
    * @param {string} message
    * @param {'success'|'error'} type
@@ -191,4 +261,36 @@
 
   // 初始化
   _init();
+
+  // 添加 DOM 变化监听，应对 SPA 页面动态渲染
+  let observerDebounceTimer = null;
+  const observer = new MutationObserver((mutations) => {
+    // 防抖，避免频繁触发
+    if (observerDebounceTimer) return;
+
+    observerDebounceTimer = setTimeout(async () => {
+      observerDebounceTimer = null;
+
+      // 检查按钮是否还在页面上
+      const currentMode = await PageDetector.getEffectiveMode();
+      const btnId = currentMode === 'domestic' ? 'vtrip-export-btn' : 'vtrip-import-btn';
+      const existingBtn = document.getElementById(btnId);
+
+      if (!existingBtn) {
+        console.log('[Main] 检测到按钮丢失，尝试重新注入');
+        _retryCount = 0;
+        if (currentMode === 'domestic') {
+          _tryInjectButton('export');
+        } else if (currentMode === 'international') {
+          _tryInjectButton('import');
+        }
+      }
+    }, 2000); // 2秒防抖
+  });
+
+  // 监听 body 的子树变化
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
 })();

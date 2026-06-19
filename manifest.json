@@ -1,11 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "产品数据迁移助手",
-  "version": "0.1.0",
-  "description": "携程国内版VBK产品数据导出，导入到Trip.com国际版VBK",
+  "name": "携程数据迁移助手",
+  "version": "0.3.0",
+  "description": "携程VBK产品数据导出、导入和模版管理工具 - 支持跨版本智能字段匹配",
   "permissions": [
     "storage",
     "activeTab"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
   ],
   "icons": {
     "16": "icons/icon16.png",
@@ -28,15 +32,38 @@
     {
       "matches": [
         "https://vbooking.ctrip.com/ivbk/vendor/baseInfoMerge*",
-        "http://vbooking.ctrip.com/ivbk/vendor/baseInfoMerge*"
+        "http://vbooking.ctrip.com/ivbk/vendor/baseInfoMerge*",
+        "https://vbooking.ctrip.com/product/input/productImageText*",
+        "http://vbooking.ctrip.com/product/input/productImageText*",
+        "https://vbooking.ctrip.com/ivbk/vendor/tourdays*",
+        "http://vbooking.ctrip.com/ivbk/vendor/tourdays*",
+        "https://vbooking.ctrip.com/ivbk/vendor/packageManage*",
+        "http://vbooking.ctrip.com/ivbk/vendor/packageManage*",
+        "https://vbooking.ctrip.com/product/input/newResourceRule*",
+        "http://vbooking.ctrip.com/product/input/newResourceRule*",
+        "https://vbooking.ctrip.com/ivbk/vendor/newResourceClause*",
+        "http://vbooking.ctrip.com/ivbk/vendor/newResourceClause*"
       ],
       "js": [
         "content/safe-storage.js",
+        "content/field-matcher.js",
+        "content/match-strategies/exact-match.js",
+        "content/match-strategies/pattern-match.js",
+        "content/match-strategies/semantic-match.js",
+        "content/ui/match-confirmation-dialog.js",
         "content/antd1-filler.js",
         "content/react-filler.js",
         "content/page-detector.js",
+        "content/page-adapters.js",
         "content/form-extractor.js",
         "content/form-filler.js",
+        "content/templates/template-storage.js",
+        "content/templates/template-manager.js",
+        "content/templates/save-template-dialog.js",
+        "content/templates/edit-template-dialog.js",
+        "content/templates/template-preview-dialog.js",
+        "content/templates/template-management-panel.js",
+        "content/ai-rewrite-dialog.js",
         "content/export.js",
         "content/import.js",
         "content/panel.js",
@@ -46,6 +73,17 @@
         "content/injected-styles.css"
       ],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content/page-ue-bridge.js"
+      ],
+      "matches": [
+        "https://vbooking.ctrip.com/*",
+        "http://vbooking.ctrip.com/*"
+      ]
     }
   ]
 }

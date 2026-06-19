@@ -12,14 +12,23 @@ const FormFiller = {
   /**
    * 批量填写表单字段
    * @param {object} data - 转换后的字段数据 { groupName: { fieldName: { value, fieldType, ... } } }
+   * @param {function} onProgress - 进度回调函数 (current, total, lastResult)
    * @returns {Promise<object>} 填写结果汇总
    */
-  async fillAll(data) {
+  async fillAll(data, onProgress) {
     this.results = [];
     const flatFields = this._flattenFields(data);
+    const total = flatFields.length;
 
-    for (const field of flatFields) {
+    for (let i = 0; i < flatFields.length; i++) {
+      const field = flatFields[i];
       await this._fillField(field);
+
+      // 调用进度回调
+      if (onProgress) {
+        onProgress(i + 1, total, this.results[this.results.length - 1]);
+      }
+
       // 字段间加小延迟，避免React渲染冲突
       await this._delay(100);
     }
@@ -55,77 +64,182 @@ const FormFiller = {
   },
 
   /**
-   * 填写单个字段
+   * 填写单个字段（v0.3.0：使用智能匹配引擎）
    * @param {object} field
    */
   async _fillField(field) {
-    const { domKey, fieldType, value } = field;
+    const { fieldType, value } = field;
 
-    if (!domKey) {
-      this.results.push({ field: field.label, status: 'skipped', reason: '无domKey' });
+    // 复合字段：推荐理由（需特殊处理子字段匹配）
+    if (fieldType === 'recommendReason') {
+      try {
+        await this._fillRecommendReason(field);
+        this.results.push({ field: field.label, status: 'success' });
+      } catch (err) {
+        this.results.push({ field: field.label, status: 'failed', reason: err.message });
+      }
       return;
     }
 
+    // 富文本编辑器：特殊处理
+    if (fieldType === 'richText') {
+      try {
+        const domKey = field.domKey || 'ueditor_0';
+        this._fillRichText(domKey, value);
+        this.results.push({ field: field.label, status: 'success' });
+      } catch (err) {
+        this.results.push({ field: field.label, status: 'failed', reason: err.message });
+      }
+      return;
+    }
+
+    // 自定义展示组件：只读，跳过
+    if (fieldType === 'customDisplay') {
+      this.results.push({ field: field.label, status: 'skipped', reason: '自定义展示组件，需手动处理' });
+      return;
+    }
+
+    // 原产品信息页的复合字段：保持旧版“行级定位”语义，不先匹配到单个 DOM 元素。
+    // 这些字段的 domKey 是 label[for] / form-item 锚点，代表一整行多个控件。
+    const rowLevelTypes = ['inputNumberGroup', 'mixedGroup', 'selectGroup', 'searchSelectGroup'];
+    if (rowLevelTypes.includes(fieldType)) {
+      try {
+        const domKey = field.domKey;
+        if (!domKey) {
+          this.results.push({ field: field.label, status: 'skipped', reason: '复合字段无domKey' });
+          return;
+        }
+
+        switch (fieldType) {
+          case 'inputNumberGroup':
+            await this._fillInputNumberGroup(domKey, value);
+            break;
+          case 'mixedGroup':
+            await this._fillMixedGroup(domKey, value);
+            break;
+          case 'selectGroup':
+            await this._fillSelectGroup(domKey, value);
+            break;
+          case 'searchSelectGroup':
+            await this._fillSearchSelectGroup(domKey, value);
+            break;
+        }
+
+        this.results.push({ field: field.label, domKey, status: 'success', strategy: 'rowLevelLegacy' });
+      } catch (err) {
+        this.results.push({ field: field.label, domKey: field.domKey, status: 'failed', reason: err.message });
+      }
+      return;
+    }
+
+    // 单控件字段：使用智能匹配引擎
     try {
+      const match = await this._smartMatchField(field);
+
+      if (!match.element) {
+        if (match.needsUserConfirmation) {
+          this.results.push({ field: field.label, status: 'skipped', reason: '用户跳过' });
+        } else {
+          this.results.push({ field: field.label, status: 'failed', reason: '未找到匹配元素' });
+        }
+        return;
+      }
+
+      // 获取匹配到的元素 ID
+      const matchedDomKey = match.element.id || field.domKey;
+      if (!matchedDomKey) {
+        this.results.push({ field: field.label, status: 'skipped', reason: '匹配元素无ID' });
+        return;
+      }
+
+      // 根据字段类型执行填充
       switch (fieldType) {
         case 'input':
-          this._fillInput(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
-          break;
-        case 'inputNumber':
-          this._fillInputNumber(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
-          break;
-        case 'inputNumberGroup':
-          await this._fillInputNumberGroup(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
-          break;
-        case 'mixedGroup':
-          await this._fillMixedGroup(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
-          break;
-        case 'selectGroup':
-          await this._fillSelectGroup(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
-          break;
-        case 'customDisplay':
-          // 自定义展示组件通常只读，跳过自动填写
-          this.results.push({ field: field.label, domKey, status: 'skipped', reason: '自定义展示组件，需手动处理' });
+          this._fillInput(matchedDomKey, value);
           break;
         case 'textarea':
-          this._fillTextarea(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
+          this._fillTextarea(matchedDomKey, value);
           break;
         case 'select':
-          await this._fillSelect(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
+          await this._fillSelect(matchedDomKey, value);
+          break;
+        case 'inputNumber':
+          this._fillInputNumber(matchedDomKey, value);
+          break;
+        case 'inputNumberGroup':
+          await this._fillInputNumberGroup(matchedDomKey, value);
+          break;
+        case 'mixedGroup':
+          await this._fillMixedGroup(matchedDomKey, value);
+          break;
+        case 'selectGroup':
+          await this._fillSelectGroup(matchedDomKey, value);
           break;
         case 'searchSelect':
-          await this._fillSearchSelect(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
+          await this._fillSearchSelect(matchedDomKey, value);
           break;
         case 'searchSelectGroup':
-          await this._fillSearchSelectGroup(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
+          await this._fillSearchSelectGroup(matchedDomKey, value);
           break;
         case 'multiSearchSelect':
-          await this._fillMultiSearchSelect(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
+          await this._fillMultiSearchSelect(matchedDomKey, value);
           break;
         case 'checkbox':
-          this._fillCheckbox(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
+          this._fillCheckbox(matchedDomKey, value);
           break;
         case 'radio':
-          this._fillRadio(domKey, value);
-          this.results.push({ field: field.label, domKey, status: 'success' });
+          this._fillRadio(matchedDomKey, value);
           break;
         default:
-          this.results.push({ field: field.label, domKey, status: 'skipped', reason: `不支持的字段类型: ${fieldType}` });
+          this.results.push({ field: field.label, status: 'skipped', reason: `不支持的字段类型: ${fieldType}` });
+          return;
       }
+
+      this.results.push({
+        field: field.label,
+        status: 'success',
+        strategy: match.strategy,
+        confidence: match.confidence
+      });
+
     } catch (err) {
-      this.results.push({ field: field.label, domKey, status: 'failed', reason: err.message });
+      this.results.push({ field: field.label, status: 'failed', reason: err.message });
     }
+  },
+
+  /**
+   * 使用智能匹配引擎查找字段元素
+   * 优先使用 FieldMatcher（v0.3.0+），不可用时回退到 domKey 查找
+   * @param {object} field
+   * @returns {Promise<object>} {element, strategy, confidence, needsUserConfirmation}
+   */
+  async _smartMatchField(field) {
+    // 优先使用 FieldMatcher（v0.3.0 智能匹配）
+    if (window.FieldMatcher && field.matchData) {
+      console.log('[FormFiller] 智能匹配:', field.label);
+      return await window.FieldMatcher.smartMatch(field, true);
+    }
+
+    // 回退到传统 domKey 查找（兼容旧版导出数据）
+    if (field.domKey) {
+      const element = document.getElementById(field.domKey);
+      if (element) {
+        console.log('[FormFiller] 传统匹配:', field.domKey);
+        return {
+          element,
+          strategy: 'legacy',
+          confidence: 95,
+          needsUserConfirmation: false
+        };
+      }
+    }
+
+    return {
+      element: null,
+      strategy: null,
+      confidence: 0,
+      needsUserConfirmation: false
+    };
   },
 
   /**
@@ -474,15 +588,22 @@ const FormFiller = {
       }
     }
 
-    // 回退到原生方法
-    const selection = selectEl.querySelector('.ant-select-selection');
-    if (selection) selection.click();
+    // 回退到原生方法：兼容 AntD 1.x (.ant-select-selection) 与新版 (.ant-select-selector)
+    const selection = selectEl.querySelector('.ant-select-selection, .ant-select-selector');
+    if (!selection) throw new Error('找不到下拉框触发区域');
+
+    selection.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    selection.click();
     await this._delay(500);
 
-    const dropdown = document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)');
+    const dropdown = Array.from(document.querySelectorAll('.ant-select-dropdown'))
+      .find(el => !el.classList.contains('ant-select-dropdown-hidden') && el.offsetParent !== null);
     if (!dropdown) throw new Error('下拉菜单未展开');
 
-    const options = dropdown.querySelectorAll('.ant-select-dropdown-menu-item');
+    const options = dropdown.querySelectorAll([
+      '.ant-select-dropdown-menu-item:not(.ant-select-dropdown-menu-item-disabled)',
+      '.ant-select-item-option:not(.ant-select-item-option-disabled)'
+    ].join(','));
     console.log(`[PlainSelect] 找到 ${options.length} 个选项`);
 
     const targetText = this._normalizeText(text);
@@ -507,8 +628,10 @@ const FormFiller = {
     }
 
     if (match) {
+      match.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await this._delay(50);
       match.click();
-      await this._delay(200);
+      await this._delay(300);
       console.log(`[PlainSelect] 点击完成`);
     } else {
       // 关闭下拉框
@@ -575,27 +698,22 @@ const FormFiller = {
    * @param {object} value - { text: string }
    */
   async _fillSelect(domKey, value) {
-    const label = document.querySelector(`label[for="${domKey}"]`);
-    if (!label) throw new Error(`找不到label: ${domKey}`);
-
-    const formItem = label.closest('.ant-form-item');
-    const selectEl = formItem ? formItem.querySelector('.ant-select') : null;
-    if (!selectEl) throw new Error(`找不到下拉框: ${domKey}`);
-
-    // 点击展开
-    selectEl.querySelector('.ant-select-selection').click();
-    await this._delay(300);
-
-    // 查找匹配项并点击
     const text = typeof value === 'object' ? value.text : String(value);
-    const dropdown = document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)');
-    if (!dropdown) throw new Error('下拉菜单未展开');
 
-    const options = dropdown.querySelectorAll('.ant-select-dropdown-menu-item');
-    const match = Array.from(options).find(opt => opt.textContent.trim() === text);
-    if (!match) throw new Error(`未找到匹配项: ${text}`);
+    // 优先通过 domKey 找到 select 内部 input，再定位最近的 .ant-select。
+    // productImageText 推荐理由的 label 没有 for 属性，只能走这条路径。
+    const input = document.querySelector(`input#${CSS.escape(domKey)}`);
+    let selectEl = input ? input.closest('.ant-select') : null;
 
-    match.click();
+    // 兼容原有 baseInfoMerge：通过 label[for] 找同一 form-item 的 select。
+    if (!selectEl) {
+      const label = document.querySelector(`label[for="${domKey}"]`);
+      const formItem = label ? label.closest('.ant-form-item') : null;
+      selectEl = formItem ? formItem.querySelector('.ant-select') : null;
+    }
+
+    if (!selectEl) throw new Error(`找不到下拉框: ${domKey}`);
+    await this._fillPlainSelectByElement(selectEl, text);
   },
 
   /**
@@ -955,5 +1073,200 @@ const FormFiller = {
     if (style.visibility === 'hidden') return true;
 
     return false;
+  },
+
+  /**
+   * 填写推荐理由（productImageText 页面）
+   * @param {object} field - 包含 category 和 description 的字段对象
+   */
+  async _fillRecommendReason(field) {
+    console.log('[FormFiller] 填写推荐理由:', field);
+
+    const { category, description, matchData } = field;
+
+    // 填充分类下拉框（使用智能匹配）；text 为空表示该子项被忽略，跳过
+    if (category && category.text) {
+      try {
+        const categoryMatch = await this._smartMatchSubField(category, matchData, 'category');
+        if (categoryMatch) {
+          const selectEl = categoryMatch.classList?.contains('ant-select')
+            ? categoryMatch
+            : categoryMatch.closest?.('.ant-select');
+          if (selectEl) {
+            await this._fillPlainSelectByElement(selectEl, category.text);
+          } else if (categoryMatch.id) {
+            await this._fillSelect(categoryMatch.id, { text: category.text });
+          } else {
+            throw new Error('分类匹配元素不是下拉框且没有ID');
+          }
+          console.log('[FormFiller] 分类填写成功:', category.text);
+        } else {
+          console.warn('[FormFiller] 分类字段匹配失败，跳过');
+        }
+      } catch (e) {
+        console.error('[FormFiller] 分类填写失败:', e);
+      }
+    }
+
+    // 填充描述文本域（使用智能匹配）
+    if (description && description.value) {
+      try {
+        const descMatch = await this._smartMatchSubField(description, matchData, 'description');
+        if (descMatch) {
+          this._fillTextarea(descMatch.id, description.value);
+          console.log('[FormFiller] 描述填写成功');
+        } else {
+          console.warn('[FormFiller] 描述字段匹配失败，跳过');
+        }
+      } catch (e) {
+        console.error('[FormFiller] 描述填写失败:', e);
+      }
+    }
+  },
+
+  /**
+   * 为复合字段的子字段进行智能匹配
+   * @param {object} subField - 子字段数据
+   * @param {object} parentMatchData - 父字段的 matchData
+   * @param {string} role - 'category' | 'description'
+   * @returns {Promise<HTMLElement|null>} 匹配到的元素
+   */
+  async _smartMatchSubField(subField, parentMatchData, role) {
+    // 构建子字段的 matchData
+    const subMatchData = parentMatchData ? {
+      exact: { domKey: parentMatchData.exact?.[role + 'DomKey'] },
+      pattern: parentMatchData.pattern?.[role],
+      semantic: {
+        container: parentMatchData.semantic?.container,
+        label: parentMatchData.semantic?.label,
+        index: parentMatchData.semantic?.index,
+        relativeSelector: role === 'category'
+          ? parentMatchData.semantic?.categorySelector
+          : parentMatchData.semantic?.descriptionSelector
+      }
+    } : null;
+
+    const fieldData = {
+      ...subField,
+      matchData: subMatchData
+    };
+
+    // 使用智能匹配
+    const match = await this._smartMatchField(fieldData);
+
+    return match.element || null;
+  },
+
+  /**
+   * 规范化富文本中所有 <img> 的 imageid 属性，统一固定为 41973044。
+   * 携程图片在不同环境下 imageid 不一致，导入时统一改写以避免无效引用。
+   * @param {string} html
+   * @returns {string}
+   */
+  _normalizeRichTextImageId(html) {
+    if (!html) return '';
+
+    const FIXED_ID = '41973044';
+
+    // 替换所有 imageid="任意值" → imageid="41973044"
+    const result = html.replace(/(\bimageid\s*=\s*")[^"]*(")/gi, `$1${FIXED_ID}$2`);
+
+    return result;
+  },
+
+  /**
+   * 填写富文本编辑器（UEditor）
+   *
+   * 关键问题：content script 运行在隔离世界，window.UE 不是页面的 UE 实例；
+   * 直接写 iframe body 的 innerHTML 只更新显示，不更新 UEditor 数据模型，
+   * 保存时页面调用 editor.getContent() / 同步 textarea 读到的仍是空内容。
+   *
+   * 正确做法：注入脚本到页面主世界，调用真正的 UE 实例 setContent() + sync()，
+   * 让 UEditor 数据模型和隐藏同步 textarea 一并更新，保存才能写入数据库。
+   *
+   * @param {string} domKey - iframe 的 id（如 ueditor_0）
+   * @param {string} htmlContent - HTML 内容
+   */
+  _fillRichText(domKey, htmlContent) {
+    console.log('[FormFiller] 填写富文本:', domKey, '内容长度:', htmlContent ? htmlContent.length : 0);
+
+    // 规范化富文本中的图片 imageid：统一固定为 41973044 再写入页面
+    const finalHtml = this._normalizeRichTextImageId(htmlContent || '');
+
+    // 1. 注入主世界脚本，调用页面真正的 UEditor 实例 API
+    const injected = this._fillRichTextViaPageUE(domKey, finalHtml);
+    if (injected) {
+      console.log('[FormFiller] 已注入主世界脚本调用 UEditor API');
+    }
+
+    // 2. 同时写 iframe DOM 作为显示兜底（不影响数据模型，仅保证可见）
+    const editorIframe = document.querySelector(`#${CSS.escape(domKey)}`);
+    if (!editorIframe) {
+      console.error('[FormFiller] 未找到富文本编辑器 iframe:', domKey);
+      if (!injected) throw new Error(`未找到富文本编辑器: ${domKey}`);
+      return;
+    }
+
+    try {
+      const iframeDoc = editorIframe.contentDocument || editorIframe.contentWindow.document;
+      const bodyContent = iframeDoc.body;
+      if (bodyContent) {
+        bodyContent.innerHTML = finalHtml;
+        bodyContent.dispatchEvent(new Event('input', { bubbles: true }));
+        bodyContent.dispatchEvent(new Event('blur', { bubbles: true }));
+        console.log('[FormFiller] 富文本 iframe 显示同步完成');
+      }
+    } catch (e) {
+      // iframe 跨域或访问失败时不阻塞，主世界注入是主路径
+      console.warn('[FormFiller] iframe 显示同步失败（不影响保存）:', e.message);
+    }
+  },
+
+  /**
+   * 通过注入主世界脚本调用页面的 UEditor 实例 API。
+   * 解决 content script 隔离世界无法访问页面 window.UE 的问题。
+   *
+   * 实现：注入 web_accessible_resources 中的 page-ue-bridge.js 到主世界，
+   * 通过 payload 节点传递 { iframeId, html }，由桥接脚本调用
+   * editor.setContent() + editor.sync()，更新数据模型和隐藏同步 textarea。
+   *
+   * @param {string} domKey - iframe id
+   * @param {string} html - HTML 内容
+   * @returns {boolean} 是否成功注入脚本
+   */
+  _fillRichTextViaPageUE(domKey, html) {
+    try {
+      if (!chrome?.runtime?.getURL) {
+        console.warn('[FormFiller] 无法获取扩展资源 URL，跳过主世界注入');
+        return false;
+      }
+
+      // 用 data 节点传递内容，避免把含大量引号的 HTML 拼进脚本字符串
+      const payloadId = `vtrip-ue-payload-${Date.now()}`;
+      const payload = document.createElement('script');
+      payload.type = 'application/json';
+      payload.id = payloadId;
+      payload.textContent = JSON.stringify({ iframeId: domKey, html });
+      (document.head || document.documentElement).appendChild(payload);
+
+      // 注入外部脚本到主世界（不受页面 inline CSP 限制）
+      const bridge = document.createElement('script');
+      bridge.src = chrome.runtime.getURL('content/page-ue-bridge.js');
+      bridge.setAttribute('data-payload-id', payloadId);
+      bridge.onload = () => {
+        bridge.remove();
+        payload.remove();
+      };
+      bridge.onerror = () => {
+        console.error('[FormFiller] 桥接脚本加载失败');
+        bridge.remove();
+        payload.remove();
+      };
+      (document.head || document.documentElement).appendChild(bridge);
+      return true;
+    } catch (e) {
+      console.error('[FormFiller] 注入 UEditor 脚本失败:', e);
+      return false;
+    }
   }
 };

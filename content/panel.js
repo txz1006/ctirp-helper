@@ -15,7 +15,7 @@ const ImportPanel = {
   /** 正在手动绑定的未匹配字段 */
   _bindingField: null,
   /** 当前页面+Tab对应的本地模板 */
-  _template: { filters: {}, defaults: {} },
+  _template: { filters: {}, defaults: {}, aiEnabled: {} },
   /** 当前模板存储key */
   _templateKey: '',
 
@@ -74,15 +74,42 @@ const ImportPanel = {
       <div class="vtrip-panel-body">
         <!-- 输入区 -->
         <div class="vtrip-panel-section vtrip-section-input">
-          <div class="vtrip-panel-actions">
-            <button class="vtrip-btn vtrip-btn-secondary" id="vtrip-paste-btn">粘贴JSON</button>
-            <label class="vtrip-btn vtrip-btn-secondary" id="vtrip-upload-btn">
-              上传文件
-              <input type="file" accept=".json" id="vtrip-file-input" style="display:none">
+          <!-- 数据源选择 -->
+          <div class="vtrip-source-selector">
+            <label class="vtrip-radio-option">
+              <input type="radio" name="data-source" value="json" checked>
+              <span>粘贴 JSON 数据</span>
+            </label>
+            <label class="vtrip-radio-option">
+              <input type="radio" name="data-source" value="template">
+              <span>使用已保存的模版</span>
             </label>
           </div>
-          <textarea class="vtrip-panel-textarea" id="vtrip-json-input" placeholder="在此粘贴导出的JSON数据..."></textarea>
-          <button class="vtrip-btn vtrip-btn-primary" id="vtrip-transform-btn" disabled>转换</button>
+
+          <!-- JSON 输入区 -->
+          <div id="vtrip-json-input-area">
+            <div class="vtrip-panel-actions">
+              <button class="vtrip-btn vtrip-btn-secondary" id="vtrip-paste-btn">粘贴JSON</button>
+              <label class="vtrip-btn vtrip-btn-secondary" id="vtrip-upload-btn">
+                上传文件
+                <input type="file" accept=".json" id="vtrip-file-input" style="display:none">
+              </label>
+            </div>
+            <textarea class="vtrip-panel-textarea" id="vtrip-json-input" placeholder="在此粘贴导出的JSON数据..."></textarea>
+          </div>
+
+          <!-- 模版选择区 -->
+          <div id="vtrip-template-select-area" style="display:none">
+            <div class="vtrip-template-select-wrapper">
+              <label for="vtrip-template-select">选择模版：</label>
+              <select id="vtrip-template-select" class="vtrip-template-select">
+                <option value="">加载中...</option>
+              </select>
+            </div>
+            <div id="vtrip-template-preview-hint" class="vtrip-input-hint"></div>
+          </div>
+
+          <button class="vtrip-btn vtrip-btn-primary" id="vtrip-transform-btn" disabled>下一步：解析并转换</button>
         </div>
 
         <!-- 预览区 -->
@@ -90,6 +117,7 @@ const ImportPanel = {
           <div class="vtrip-section-title">转换结果预览</div>
           <div class="vtrip-preview-list" id="vtrip-preview-list"></div>
           <div class="vtrip-panel-actions">
+            <button class="vtrip-btn vtrip-btn-secondary" id="vtrip-ai-rewrite-btn" style="margin-right: auto;">🤖 AI 改写</button>
             <button class="vtrip-btn vtrip-btn-secondary" id="vtrip-back-btn">上一步</button>
             <button class="vtrip-btn vtrip-btn-primary" id="vtrip-match-btn">匹配预览</button>
           </div>
@@ -177,6 +205,33 @@ const ImportPanel = {
     // 关闭按钮
     this.panelEl.querySelector('.vtrip-panel-close').addEventListener('click', () => this.hide());
 
+    // 数据源选择
+    const jsonRadio = this.panelEl.querySelector('input[value="json"]');
+    const templateRadio = this.panelEl.querySelector('input[value="template"]');
+    const jsonInputArea = this.panelEl.querySelector('#vtrip-json-input-area');
+    const templateSelectArea = this.panelEl.querySelector('#vtrip-template-select-area');
+
+    jsonRadio.addEventListener('change', () => {
+      if (jsonRadio.checked) {
+        jsonInputArea.style.display = 'block';
+        templateSelectArea.style.display = 'none';
+        this._onInputChange();
+      }
+    });
+
+    templateRadio.addEventListener('change', () => {
+      if (templateRadio.checked) {
+        jsonInputArea.style.display = 'none';
+        templateSelectArea.style.display = 'block';
+        this._loadTemplateList();
+      }
+    });
+
+    // 模版选择变化
+    this.panelEl.querySelector('#vtrip-template-select').addEventListener('change', () => {
+      this._onTemplateSelectChange();
+    });
+
     // 粘贴按钮
     this.panelEl.querySelector('#vtrip-paste-btn').addEventListener('click', async () => {
       try {
@@ -242,9 +297,9 @@ const ImportPanel = {
       }
     });
 
-    // 预览区过滤/默认值变化时保存当前Tab模板
+    // 预览区过滤/默认值/AI变化时保存当前Tab模板
     this.panelEl.addEventListener('change', (e) => {
-      if (!e.target.matches('.vtrip-preview-filter, .vtrip-preview-default')) return;
+      if (!e.target.matches('.vtrip-preview-filter, .vtrip-preview-default, .vtrip-preview-ai')) return;
       if (e.target.matches('.vtrip-preview-filter')) {
         e.target.closest('.vtrip-preview-field')?.classList.toggle('vtrip-preview-field-filtered', e.target.checked);
       }
@@ -255,6 +310,9 @@ const ImportPanel = {
       this._saveTemplateFromPreview();
     });
 
+    // AI 改写按钮
+    this.panelEl.querySelector('#vtrip-ai-rewrite-btn').addEventListener('click', () => this._handleAIRewrite());
+
     // 页面点击：用于手动选择目标表单控件
     document.addEventListener('click', (e) => this._handlePageBindClick(e), true);
   },
@@ -263,16 +321,128 @@ const ImportPanel = {
    * 输入框内容变化
    */
   _onInputChange() {
+    const jsonRadio = this.panelEl.querySelector('input[value="json"]');
+    if (!jsonRadio.checked) return;
+
     const text = this.panelEl.querySelector('#vtrip-json-input').value.trim();
     const transformBtn = this.panelEl.querySelector('#vtrip-transform-btn');
     transformBtn.disabled = !text;
   },
 
   /**
+   * 加载模版列表到下拉框
+   * @private
+   */
+  async _loadTemplateList() {
+    const select = this.panelEl.querySelector('#vtrip-template-select');
+    const transformBtn = this.panelEl.querySelector('#vtrip-transform-btn');
+    const hint = this.panelEl.querySelector('#vtrip-template-preview-hint');
+
+    try {
+      const templates = await TemplateManager.getAllSorted();
+
+      if (templates.length === 0) {
+        select.innerHTML = '<option value="">暂无模版</option>';
+        select.disabled = true;
+        transformBtn.disabled = true;
+        hint.textContent = '还没有保存的模版，请先在页面底部点击"💾 保存为模版"';
+        hint.style.color = '#999';
+        return;
+      }
+
+      select.disabled = false;
+      select.innerHTML = '<option value="">请选择模版...</option>' +
+        templates.map(tpl => {
+          const desc = tpl.description ? ` - ${tpl.description}` : '';
+          return `<option value="${tpl.id}">${this._escapeHtml(tpl.name)}${this._escapeHtml(desc)}</option>`;
+        }).join('');
+
+      transformBtn.disabled = true;
+      hint.textContent = '';
+
+    } catch (error) {
+      console.error('[ImportPanel] 加载模版列表失败:', error);
+      select.innerHTML = '<option value="">加载失败</option>';
+      select.disabled = true;
+      transformBtn.disabled = true;
+      hint.textContent = '加载模版失败，请刷新页面后重试';
+      hint.style.color = '#ff4d4f';
+    }
+  },
+
+  /**
+   * 模版选择变化
+   * @private
+   */
+  _onTemplateSelectChange() {
+    const select = this.panelEl.querySelector('#vtrip-template-select');
+    const transformBtn = this.panelEl.querySelector('#vtrip-transform-btn');
+    const hint = this.panelEl.querySelector('#vtrip-template-preview-hint');
+
+    const templateId = select.value;
+
+    if (!templateId) {
+      transformBtn.disabled = true;
+      hint.textContent = '';
+      return;
+    }
+
+    // 显示模版信息
+    TemplateStorage.get(templateId).then(template => {
+      if (!template) {
+        hint.textContent = '模版不存在';
+        hint.style.color = '#ff4d4f';
+        transformBtn.disabled = true;
+        return;
+      }
+
+      const fieldCount = TemplateManager.countFields(template);
+      const updatedDate = new Date(template.updatedAt).toLocaleDateString('zh-CN');
+      hint.textContent = `📦 ${fieldCount} 个字段 | 更新于 ${updatedDate}`;
+      hint.style.color = '#666';
+      transformBtn.disabled = false;
+    });
+  },
+
+  /**
    * 处理转换操作
    */
   async _handleTransform() {
-    const jsonText = this.panelEl.querySelector('#vtrip-json-input').value.trim();
+    const jsonRadio = this.panelEl.querySelector('input[value="json"]');
+    const templateRadio = this.panelEl.querySelector('input[value="template"]');
+
+    let jsonText;
+
+    // 判断数据源
+    if (jsonRadio.checked) {
+      // 从 JSON 输入框获取
+      jsonText = this.panelEl.querySelector('#vtrip-json-input').value.trim();
+    } else if (templateRadio.checked) {
+      // 从模版获取
+      const select = this.panelEl.querySelector('#vtrip-template-select');
+      const templateId = select.value;
+
+      if (!templateId) {
+        this._showMessage('请选择一个模版');
+        return;
+      }
+
+      try {
+        const templateData = await TemplateManager.applyTemplate(templateId);
+        if (!templateData) {
+          // 用户取消了不兼容确认
+          return;
+        }
+
+        // 将模版数据转换为 JSON 字符串
+        jsonText = JSON.stringify(templateData);
+      } catch (error) {
+        console.error('[ImportPanel] 应用模版失败:', error);
+        this._showMessage(`应用模版失败：${error.message}`);
+        return;
+      }
+    }
+
     const parsed = ImportHandler.parseInput(jsonText);
 
     if (!parsed.success) {
@@ -305,21 +475,68 @@ const ImportPanel = {
       html += `<div class="vtrip-preview-group">${this._escapeHtml(groupName)}</div>`;
       for (const [fieldLabel, fieldData] of Object.entries(groupData)) {
         if (!fieldData || typeof fieldData !== 'object') continue;
-        const sourceTag = this._getSourceTag(fieldData.source);
+
+        // 推荐理由是复合字段，预览中拆成“分类”和“描述”两个可编辑输入，避免把 select + textarea 合成一个值。
+        if (fieldData.fieldType === 'recommendReason') {
+          const baseKey = this._getFieldKey(groupName, fieldLabel);
+          const categoryKey = `${baseKey}::category.text`;
+          const descriptionKey = `${baseKey}::description.value`;
+          const categoryValue = fieldData.category?.text || '';
+          const descriptionValue = fieldData.description?.value || '';
+          const categoryFiltered = !!this._template.filters[categoryKey];
+          const descriptionFiltered = !!this._template.filters[descriptionKey];
+          const categoryAiEnabled = !!this._template.aiEnabled?.[categoryKey];
+          const descriptionAiEnabled = !!this._template.aiEnabled?.[descriptionKey];
+
+          html += `
+            <div class="vtrip-preview-field ${categoryFiltered ? 'vtrip-preview-field-filtered' : ''}">
+              <label class="vtrip-preview-filter-wrap" title="勾选后不填写此项">
+                <input type="checkbox" class="vtrip-preview-filter" data-field-key="${this._escapeHtml(categoryKey)}" ${categoryFiltered ? 'checked' : ''}>
+                忽略
+              </label>
+              <label class="vtrip-preview-label">${this._escapeHtml(fieldLabel)} / 分类</label>
+              <input class="vtrip-preview-input" data-field-path="${this._escapeHtml(categoryKey)}" data-field-key="${this._escapeHtml(categoryKey)}" value="${this._escapeHtml(categoryValue)}">
+              <input class="vtrip-preview-default" style="visibility:hidden" tabindex="-1">
+              <label class="vtrip-preview-ai-wrap" title="勾选后可使用AI改写此项内容">
+                <input type="checkbox" class="vtrip-preview-ai" data-field-key="${this._escapeHtml(categoryKey)}" ${categoryAiEnabled ? 'checked' : ''}>
+                AI
+              </label>
+            </div>
+            <div class="vtrip-preview-field ${descriptionFiltered ? 'vtrip-preview-field-filtered' : ''}">
+              <label class="vtrip-preview-filter-wrap" title="勾选后不填写此项">
+                <input type="checkbox" class="vtrip-preview-filter" data-field-key="${this._escapeHtml(descriptionKey)}" ${descriptionFiltered ? 'checked' : ''}>
+                忽略
+              </label>
+              <label class="vtrip-preview-label">${this._escapeHtml(fieldLabel)} / 描述</label>
+              <input class="vtrip-preview-input" data-field-path="${this._escapeHtml(descriptionKey)}" data-field-key="${this._escapeHtml(descriptionKey)}" value="${this._escapeHtml(descriptionValue)}">
+              <input class="vtrip-preview-default" style="visibility:hidden" tabindex="-1">
+              <label class="vtrip-preview-ai-wrap" title="勾选后可使用AI改写描述内容">
+                <input type="checkbox" class="vtrip-preview-ai" data-field-key="${this._escapeHtml(descriptionKey)}" ${descriptionAiEnabled ? 'checked' : ''}>
+                AI
+              </label>
+            </div>
+          `;
+          continue;
+        }
+
         const value = this._getDisplayValue(fieldData);
         const fieldKey = this._getFieldKey(groupName, fieldLabel);
         const filtered = !!this._template.filters[fieldKey];
+        const aiEnabled = !!this._template.aiEnabled?.[fieldKey];
         const defaultValue = this._template.defaults[fieldKey] || '';
         html += `
           <div class="vtrip-preview-field ${filtered ? 'vtrip-preview-field-filtered' : ''}">
             <label class="vtrip-preview-filter-wrap" title="勾选后不使用JSON原值；如填写默认值，则改用默认值">
               <input type="checkbox" class="vtrip-preview-filter" data-field-key="${this._escapeHtml(fieldKey)}" ${filtered ? 'checked' : ''}>
-              过滤
+              忽略
             </label>
             <label class="vtrip-preview-label">${this._escapeHtml(fieldLabel)}</label>
-            <input class="vtrip-preview-input" data-domkey="${this._escapeHtml(fieldData.domKey || '')}" value="${this._escapeHtml(value)}">
+            <input class="vtrip-preview-input" data-domkey="${this._escapeHtml(fieldData.domKey || '')}" data-field-key="${this._escapeHtml(fieldKey)}" value="${this._escapeHtml(value)}">
             <input class="vtrip-preview-default" data-field-key="${this._escapeHtml(fieldKey)}" placeholder="默认值" value="${this._escapeHtml(defaultValue)}">
-            <span class="vtrip-preview-tag ${fieldData.source || ''}">${sourceTag}</span>
+            <label class="vtrip-preview-ai-wrap" title="勾选后可使用AI改写此字段内容">
+              <input type="checkbox" class="vtrip-preview-ai" data-field-key="${this._escapeHtml(fieldKey)}" ${aiEnabled ? 'checked' : ''}>
+              AI
+            </label>
           </div>
         `;
       }
@@ -353,9 +570,10 @@ const ImportPanel = {
   async _loadTemplate() {
     this._templateKey = this._getTemplateKey();
     const stored = await SafeStorage.get([this._templateKey]);
-    this._template = stored[this._templateKey] || { filters: {}, defaults: {} };
+    this._template = stored[this._templateKey] || { filters: {}, defaults: {}, aiEnabled: {} };
     this._template.filters = this._template.filters || {};
     this._template.defaults = this._template.defaults || {};
+    this._template.aiEnabled = this._template.aiEnabled || {};
   },
 
   /**
@@ -366,6 +584,8 @@ const ImportPanel = {
 
     const filters = {};
     const defaults = {};
+    const aiEnabled = {};
+
     this.panelEl.querySelectorAll('.vtrip-preview-filter').forEach(input => {
       if (input.checked) filters[input.dataset.fieldKey] = true;
     });
@@ -373,8 +593,11 @@ const ImportPanel = {
       const value = input.value.trim();
       if (value) defaults[input.dataset.fieldKey] = value;
     });
+    this.panelEl.querySelectorAll('.vtrip-preview-ai').forEach(input => {
+      if (input.checked) aiEnabled[input.dataset.fieldKey] = true;
+    });
 
-    this._template = { filters, defaults };
+    this._template = { filters, defaults, aiEnabled };
     await SafeStorage.set({ [this._templateKey]: this._template });
   },
 
@@ -391,6 +614,29 @@ const ImportPanel = {
 
   _getDisplayValue(fieldData) {
     if (!fieldData) return '';
+
+    // 推荐理由（productImageText 页面）
+    if (fieldData.fieldType === 'recommendReason') {
+      const category = fieldData.category?.text || '';
+      const description = fieldData.description?.value || '';
+      return `${category}: ${description.substring(0, 50)}${description.length > 50 ? '...' : ''}`;
+    }
+
+    // 富文本编辑器（productImageText 页面）
+    if (fieldData.fieldType === 'richText') {
+      // 优先使用纯文本；零宽字符/换行视为空，再从 HTML 中提取
+      const normalizeRichText = text => String(text || '').replace(/[​-‍﻿]/g, '').trim();
+      let textValue = fieldData.textValue || '';
+      if (!normalizeRichText(textValue) && fieldData.value) {
+        // 从HTML中提取纯文本（图片型富文本可能仍为空）
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = fieldData.value;
+        textValue = tempDiv.textContent || tempDiv.innerText || '';
+      }
+      const displayText = normalizeRichText(textValue).substring(0, 100);
+      return displayText ? displayText + (normalizeRichText(textValue).length > 100 ? '...' : '') : '[富文本内容]';
+    }
+
     if (fieldData.fieldType === 'inputNumberGroup' && fieldData.value && fieldData.value.values) {
       const vals = fieldData.value.values;
       const seps = fieldData.value.separators || [];
@@ -454,8 +700,15 @@ const ImportPanel = {
 
     this._showSection('filling');
 
+    // 初始化进度显示
+    this._initFillProgress();
+
     try {
-      const result = await FormFiller.fillAll(effectiveData.data);
+      const result = await FormFiller.fillAll(effectiveData.data, (current, total, lastResult) => {
+        // 实时更新进度
+        this._updateFillProgress(current, total, lastResult);
+      });
+
       this._renderFillProgress(result);
 
       // 填写完成后自动回读验证
@@ -468,24 +721,98 @@ const ImportPanel = {
   },
 
   /**
+   * 处理 AI 改写
+   * @private
+   */
+  async _handleAIRewrite() {
+    if (!window.AIRewriteDialog) {
+      alert('AI 改写功能未加载，请刷新页面后重试');
+      return;
+    }
+
+    // 收集勾选了 AI 的字段
+    const aiCheckboxes = this.panelEl.querySelectorAll('.vtrip-preview-ai:checked');
+    if (aiCheckboxes.length === 0) {
+      alert('请先勾选需要 AI 改写的字段（最右侧的 AI 复选框）');
+      return;
+    }
+
+    const fields = [];
+    aiCheckboxes.forEach(checkbox => {
+      const fieldKey = checkbox.dataset.fieldKey;
+      const fieldRow = checkbox.closest('.vtrip-preview-field');
+      const label = fieldRow.querySelector('.vtrip-preview-label').textContent;
+      const input = fieldRow.querySelector('.vtrip-preview-input');
+      const value = input.value;
+
+      if (value && value.trim()) {
+        fields.push({
+          key: fieldKey,
+          label: label,
+          value: value,
+          input: input
+        });
+      }
+    });
+
+    if (fields.length === 0) {
+      alert('勾选的字段没有内容可以改写');
+      return;
+    }
+
+    // 显示 AI 改写对话框
+    try {
+      const result = await AIRewriteDialog.show(fields);
+      if (!result) {
+        // 用户取消
+        return;
+      }
+
+      // 应用改写结果
+      const { rewrittenFields } = result;
+      fields.forEach(field => {
+        if (rewrittenFields[field.key]) {
+          field.input.value = rewrittenFields[field.key];
+          // 触发 input 事件以保存到模板
+          field.input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+
+      console.log('[ImportPanel] AI 改写完成，已更新', fields.length, '个字段');
+
+    } catch (error) {
+      console.error('[ImportPanel] AI 改写失败:', error);
+      alert(`AI 改写失败：${error.message}`);
+    }
+  },
+
+  /**
    * 收集预览面板中用户修改的值
    */
   _collectPreviewEdits() {
     const inputs = this.panelEl.querySelectorAll('.vtrip-preview-input');
     inputs.forEach(input => {
+      const fieldPath = input.dataset.fieldPath;
+      if (fieldPath) {
+        this._setFieldValueByPath(fieldPath, input.value);
+        return;
+      }
+
       const domKey = input.dataset.domkey;
       if (!domKey) return;
       // 更新transformedData中对应字段的值
       for (const groupData of Object.values(this._transformedData.data)) {
         for (const fieldData of Object.values(groupData)) {
           if (fieldData && fieldData.domKey === domKey) {
-            // 复杂类型不覆盖，保持原始结构
+            // 复杂类型不覆盖，保持原始结构；复合字段通过 data-field-path 单独回写。
             if (fieldData.fieldType === 'inputNumberGroup' ||
                 fieldData.fieldType === 'mixedGroup' ||
                 fieldData.fieldType === 'selectGroup' ||
                 fieldData.fieldType === 'searchSelectGroup' ||
                 fieldData.fieldType === 'multiSearchSelect' ||
-                fieldData.fieldType === 'customDisplay') {
+                fieldData.fieldType === 'customDisplay' ||
+                fieldData.fieldType === 'recommendReason' ||
+                fieldData.fieldType === 'richText') {
               continue;
             }
             if (fieldData.fieldType === 'searchSelect' && fieldData.value) {
@@ -502,6 +829,25 @@ const ImportPanel = {
   },
 
   /**
+   * 根据预览输入路径回写嵌套字段值，例如：推荐理由::推荐理由_0::description.value
+   * @param {string} fieldPath
+   * @param {string} value
+   */
+  _setFieldValueByPath(fieldPath, value) {
+    const [groupName, fieldLabel, nestedPath] = fieldPath.split('::');
+    const fieldData = this._transformedData?.data?.[groupName]?.[fieldLabel];
+    if (!fieldData || !nestedPath) return;
+
+    const keys = nestedPath.split('.');
+    let target = fieldData;
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (!target[keys[i]] || typeof target[keys[i]] !== 'object') return;
+      target = target[keys[i]];
+    }
+    target[keys[keys.length - 1]] = value;
+  },
+
+  /**
    * 根据过滤字段和默认值生成实际参与填写的数据
    * @returns {object}
    */
@@ -512,6 +858,20 @@ const ImportPanel = {
         if (!fieldData || typeof fieldData !== 'object') continue;
 
         const fieldKey = this._getFieldKey(groupName, fieldLabel);
+
+        // 复合字段（推荐理由）：按子项 key 单独处理忽略，子项被忽略则清空该子项的值
+        if (fieldData.fieldType === 'recommendReason') {
+          const categoryKey = `${fieldKey}::category.text`;
+          const descriptionKey = `${fieldKey}::description.value`;
+          if (this._template.filters[categoryKey] && fieldData.category) {
+            fieldData.category.text = '';
+          }
+          if (this._template.filters[descriptionKey] && fieldData.description) {
+            fieldData.description.value = '';
+          }
+          continue;
+        }
+
         const filtered = !!this._template.filters[fieldKey];
         const defaultValue = this._template.defaults[fieldKey] || '';
         const currentValue = this._getDisplayValue(fieldData).trim();
@@ -532,7 +892,52 @@ const ImportPanel = {
   },
 
   /**
-   * 渲染填写进度
+   * 初始化填写进度显示
+   * @private
+   */
+  _initFillProgress() {
+    const fillEl = this.panelEl.querySelector('#vtrip-progress-fill');
+    const textEl = this.panelEl.querySelector('#vtrip-progress-text');
+    const listEl = this.panelEl.querySelector('#vtrip-result-list');
+
+    fillEl.style.width = '0%';
+    textEl.textContent = '0/0';
+    listEl.innerHTML = '<div style="color: #808C9D; padding: 8px;">正在初始化...</div>';
+  },
+
+  /**
+   * 实时更新填写进度
+   * @param {number} current - 当前已完成数量
+   * @param {number} total - 总数量
+   * @param {object} lastResult - 最后一个字段的填写结果
+   * @private
+   */
+  _updateFillProgress(current, total, lastResult) {
+    const fillEl = this.panelEl.querySelector('#vtrip-progress-fill');
+    const textEl = this.panelEl.querySelector('#vtrip-progress-text');
+    const listEl = this.panelEl.querySelector('#vtrip-result-list');
+
+    // 更新进度条
+    const pct = total > 0 ? (current / total * 100) : 0;
+    fillEl.style.width = `${pct}%`;
+    textEl.textContent = `${current}/${total}`;
+
+    // 追加最新的填写结果
+    if (lastResult) {
+      const icon = lastResult.status === 'success' ? '✅' : lastResult.status === 'skipped' ? '⚠️' : '❌';
+      const reason = lastResult.reason ? ` (${lastResult.reason})` : '';
+      const item = document.createElement('div');
+      item.className = `vtrip-result-item ${lastResult.status}`;
+      item.innerHTML = `${icon} ${this._escapeHtml(lastResult.field)}${reason}`;
+      listEl.appendChild(item);
+
+      // 自动滚动到最新项
+      listEl.scrollTop = listEl.scrollHeight;
+    }
+  },
+
+  /**
+   * 渲染填写进度（完成后调用，确保最终状态正确）
    * @param {object} result
    */
   _renderFillProgress(result) {
@@ -624,13 +1029,18 @@ const ImportPanel = {
     const { matched } = matchResult;
 
     matched.forEach(m => {
-      // 优先通过domKey找目标控件，手动绑定后label可能不一致
-      const labelEl = m.fieldData?.domKey
-        ? document.querySelector(`label[for="${m.fieldData.domKey}"]`)
-        : this._findLabelElement(m.label);
-      if (!labelEl) return;
+      // 优先用页面字段的 domKey 定位真实控件；复合字段的导入 domKey 可能不存在于目标页面。
+      const targetDomKey = m.pageField?.domKey || m.fieldData?.domKey || '';
+      let targetEl = targetDomKey ? document.getElementById(targetDomKey) : null;
 
-      const formItem = labelEl.closest('.ant-form-item');
+      // 兼容 select：domKey 通常在内部 input 上，叠加标签应挂在整行 form-item 上。
+      let formItem = targetEl ? targetEl.closest('.ant-form-item') : null;
+
+      // 兜底：通过页面 label 找对应行，而不是导入字段 label（推荐理由_0）
+      if (!formItem) {
+        const labelEl = this._findLabelElement(m.pageLabel || m.label);
+        formItem = labelEl ? labelEl.closest('.ant-form-item') : null;
+      }
       if (!formItem) return;
 
       const controlWrapper = formItem.querySelector('.ant-form-item-control');
@@ -639,7 +1049,11 @@ const ImportPanel = {
       // 创建叠加label
       const overlay = document.createElement('div');
       overlay.className = 'vtrip-overlay-label vtrip-overlay-matched';
-      overlay.textContent = m.importValue || '(空)';
+      const displayValue = m.importValue || '(空)';
+      overlay.textContent = displayValue;
+
+      // 添加 title 显示完整内容
+      overlay.title = `将填入: ${displayValue}`;
 
       // 设置控件区域为relative定位（如果还不是）
       const computedStyle = window.getComputedStyle(controlWrapper);
@@ -831,7 +1245,9 @@ const ImportPanel = {
     }
     const overlay = document.createElement('div');
     overlay.className = 'vtrip-overlay-label vtrip-overlay-unmatched';
-    overlay.textContent = value || '(空)';
+    const displayValue = value || '(空)';
+    overlay.textContent = displayValue;
+    overlay.title = `将填入: ${displayValue}`;
     controlWrapper.appendChild(overlay);
   },
 
@@ -971,6 +1387,8 @@ const ImportPanel = {
             label: fieldLabel,
             importGroup: groupName,
             pageGroup: pageField.pageGroup,
+            pageLabel: pageField.pageLabel,
+            pageField,
             importValue: this._getDisplayValue(fieldData),
             currentValue: pageField.currentValue,
             fieldType: fieldData.fieldType,
@@ -993,6 +1411,10 @@ const ImportPanel = {
     }
 
     for (const [fieldLabel, fieldInfo] of Object.entries(pageIndex)) {
+      // 空白的页面占位字段不提示“无数据源”，避免 productImageText 的新增空行造成误导。
+      const currentValue = String(fieldInfo.currentValue || '').replace(/^:\s*$/, '').trim();
+      if (!currentValue) continue;
+
       noTarget.push({
         label: fieldLabel,
         pageGroup: fieldInfo.pageGroup,

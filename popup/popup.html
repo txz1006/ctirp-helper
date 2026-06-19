@@ -60,23 +60,24 @@
 
     <!-- API配置 -->
     <section class="popup-section">
-      <h2 class="popup-section-title">大模型API配置</h2>
-      <div class="popup-form-group">
-        <label class="popup-label">API类型</label>
-        <select id="api-type" class="popup-select">
-          <option value="openai">OpenAI兼容</option>
-          <option value="anthropic">Anthropic Claude</option>
-        </select>
-      </div>
+      <h2 class="popup-section-title">LLM API 配置</h2>
       <div class="popup-form-group">
         <label class="popup-label">API Key</label>
-        <input type="password" id="api-key" class="popup-input" placeholder="sk-...">
+        <input type="password" id="llm-api-key" class="popup-input" placeholder="sk-...">
       </div>
       <div class="popup-form-group">
-        <label class="popup-label">API端点</label>
-        <input type="text" id="api-endpoint" class="popup-input" placeholder="https://api.openai.com/v1/chat/completions">
+        <label class="popup-label">Base URL</label>
+        <input type="text" id="llm-base-url" class="popup-input" placeholder="https://api.openai.com/v1">
       </div>
-      <button id="save-config-btn" class="popup-btn">保存配置</button>
+      <div class="popup-form-group">
+        <label class="popup-label">模型</label>
+        <input type="text" id="llm-model" class="popup-input" placeholder="gpt-4o-mini">
+      </div>
+      <div class="popup-hint">
+        💡 支持 OpenAI 兼容 API（DeepSeek、智谱、硅基等）
+      </div>
+      <button id="save-llm-config-btn" class="popup-btn">保存配置</button>
+      <div id="llm-config-status" class="popup-status-message" style="display: none;"></div>
     </section>
   </div>
 

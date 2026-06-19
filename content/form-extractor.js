@@ -11,6 +11,15 @@ const FormExtractor = {
    * @returns {object} 层级结构数据
    */
   extract() {
+    // 使用页面适配器
+    if (window.PageAdapters) {
+      const adapter = PageAdapters.detectAdapter();
+      if (adapter && adapter.extract) {
+        return adapter.extract();
+      }
+    }
+
+    // 兜底：使用默认逻辑（baseInfoMerge）
     const result = {
       version: '1.0',
       source: PageDetector.detect() === 'domestic' ? 'domestic' : 'international',
@@ -42,6 +51,15 @@ const FormExtractor = {
    * @returns {object} { groupName: { fieldLabel: { domKey, label, fieldType, currentValue } } }
    */
   extractFieldMap() {
+    // 使用页面适配器
+    if (window.PageAdapters) {
+      const adapter = PageAdapters.detectAdapter();
+      if (adapter && adapter.extractFieldMap) {
+        return adapter.extractFieldMap();
+      }
+    }
+
+    // 兜底：使用默认逻辑（baseInfoMerge）
     const result = {};
     const cards = document.querySelectorAll('.content-card');
     cards.forEach(card => {
