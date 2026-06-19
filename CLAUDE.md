@@ -16,6 +16,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Current status:** v0.3.0 (smart field matching engine)
 **Previous:** v0.2.0 (template system implemented)
 
+## Git Workflow
+
+**项目根目录是 `extension/`，不是父目录 `vtrip/`。**
+
+所有 git 操作必须限定在 extension 目录内：
+
+```bash
+# ✅ 正确
+cd extension
+git add -A
+git commit -m "feat: ..."
+git log
+
+# ❌ 错误 — 父目录本来就没有 .git（已移除）
+cd .. && git commit
+```
+
+**提交粒度：**
+- 每次功能完成或 bug 修复后立即提交
+- 提交信息使用 [Conventional Commits](https://www.conventionalcommits.org/) 格式：
+  - `feat:` — 新功能
+  - `fix:` — bug 修复
+  - `refactor:` — 重构
+  - `docs:` — 文档
+  - `chore:` — 构建/配置
+
+**提交前检查清单：**
+1. `node --check` 所有修改的 JS 文件语法通过
+2. `npm test` 已有测试通过
+3. 无临时测试文件（`test-*.html`、`*-FIX.md` 等）
+
+**提交后：**
+- 提交信息末尾统一加 `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
+- 不需要 push（本地开发，无 remote）
+
 ## Architecture
 
 ### Content Script Loading Order (Critical)
