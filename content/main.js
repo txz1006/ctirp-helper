@@ -33,6 +33,12 @@
   async function _init() {
     const currentMode = await PageDetector.getEffectiveMode();
 
+    // 触发点1：初始化时激活当前 URL 命中的适配器（机制α）
+    // 保证适配器专属字段就位，后续 extract/extractFieldMap 时状态机已正确
+    if (window.PageRegistry) {
+      PageRegistry.activate();
+    }
+
     // 移除旧按钮
     _removeInjectedButtons();
 
@@ -178,6 +184,8 @@
    * 处理导出点击
    */
   async function _handleExport() {
+    // 触发点2：导出前确保当前适配器已激活（机制α）
+    if (window.PageRegistry) PageRegistry.activate();
     const btn = document.getElementById('vtrip-export-btn');
     const originalText = btn.innerHTML;
     btn.innerHTML = '<span>导出中...</span>';
@@ -200,6 +208,8 @@
    * 处理导入点击
    */
   function _handleImport() {
+    // 触发点2：导入前确保当前适配器已激活（机制α）
+    if (window.PageRegistry) PageRegistry.activate();
     ImportPanel.show();
   }
 
@@ -271,6 +281,13 @@
     observerDebounceTimer = setTimeout(async () => {
       observerDebounceTimer = null;
 
+      // 触发点3：SPA 路由变化检测——记录上一个 URL，变化时重新激活适配器（机制α）
+      if (window.PageRegistry && location.href !== lastHref) {
+        lastHref = location.href;
+        console.log('[Main] 检测到 SPA URL 变化，重新激活适配器:', lastHref);
+        PageRegistry.activate();
+      }
+
       // 检查按钮是否还在页面上
       const currentMode = await PageDetector.getEffectiveMode();
       const btnId = currentMode === 'domestic' ? 'vtrip-export-btn' : 'vtrip-import-btn';
@@ -287,6 +304,8 @@
       }
     }, 2000); // 2秒防抖
   });
+
+  let lastHref = location.href;
 
   // 监听 body 的子树变化
   observer.observe(document.body, {

@@ -64,11 +64,26 @@ const FormFiller = {
   },
 
   /**
-   * 填写单个字段（v0.3.0：使用智能匹配引擎）
+   * 填写单个字段（v0.3.0：使用智能匹配引擎；阶段2：Registry 增量通道）
    * @param {object} field
    */
   async _fillField(field) {
     const { fieldType, value } = field;
+
+    // 【新 · 阶段2】Registry 增量通道：已注册类型走 handler.fill，老 switch 冻结（§5.2）
+    // 老的 15 种类型未注册 → resolve 返回 null → 落到下面老路径，行为零变化
+    const handler = window.FieldTypeRegistry && FieldTypeRegistry.resolve(fieldType);
+    if (handler) {
+      try {
+        await handler.fill(field, this._buildContext());
+        this.results.push({ field: field.label, status: 'success', strategy: 'registry' });
+      } catch (err) {
+        this.results.push({ field: field.label, status: 'failed', reason: err.message });
+      }
+      return;
+    }
+
+    // 【老 · 冻结】以下 switch / if 分支不再新增类型，新类型一律走 Registry
 
     // 复合字段：推荐理由（需特殊处理子字段匹配）
     if (fieldType === 'recommendReason') {
@@ -1057,6 +1072,22 @@ const FormFiller = {
   },
 
   /**
+   * 构建 FillContext 注入给 Registry 注册的 handler（§5.1 Issue 6）
+   * handler.fill 通过 ctx 复用现有能力，不重写匹配/填充逻辑。
+   * @returns {object}
+   */
+  _buildContext() {
+    return {
+      FieldMatcher: window.FieldMatcher,
+      AntD1Filler: window.AntD1Filler,
+      ReactFiller: window.ReactFiller,
+      delay: (ms) => this._delay(ms),
+      smartMatchField: (field) => this._smartMatchField(field),
+      results: this.results
+    };
+  },
+
+  /**
    * 判断元素是否隐藏
    * @param {HTMLElement} element
    * @returns {boolean}
@@ -1159,19 +1190,13 @@ const FormFiller = {
 
   /**
    * 规范化富文本中所有 <img> 的 imageid 属性，统一固定为 41973044。
-   * 携程图片在不同环境下 imageid 不一致，导入时统一改写以避免无效引用。
+   * 实现已抽出到 services/sanitizers.js 的 Sanitizers.normalizeImageId（阶段3）。
+   * 本方法保留为转发，维持原有方法签名向后兼容。
    * @param {string} html
    * @returns {string}
    */
   _normalizeRichTextImageId(html) {
-    if (!html) return '';
-
-    const FIXED_ID = '41973044';
-
-    // 替换所有 imageid="任意值" → imageid="41973044"
-    const result = html.replace(/(\bimageid\s*=\s*")[^"]*(")/gi, `$1${FIXED_ID}$2`);
-
-    return result;
+    return window.Sanitizers ? Sanitizers.normalizeImageId(html) : (html || '');
   },
 
   /**

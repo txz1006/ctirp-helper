@@ -11,15 +11,22 @@ const FormExtractor = {
    * @returns {object} 层级结构数据
    */
   extract() {
-    // 使用页面适配器
-    if (window.PageAdapters) {
-      const adapter = PageAdapters.detectAdapter();
-      if (adapter && adapter.extract) {
-        return adapter.extract();
-      }
+    // 委托 PageRegistry 激活当前 URL 命中的适配器（机制α）
+    const adapter = PageRegistry.activate();
+    if (adapter && adapter.extract) {
+      return adapter.extract();
     }
 
     // 兜底：使用默认逻辑（baseInfoMerge）
+    return this._fallbackExtract();
+  },
+
+  /**
+   * 默认提取兜底（baseInfoMerge 逻辑）
+   * 原原 extract 内联实现，抽出命名以便 Registry 未命中时复用。
+   * @returns {object}
+   */
+  _fallbackExtract() {
     const result = {
       version: '1.0',
       source: PageDetector.detect() === 'domestic' ? 'domestic' : 'international',
@@ -51,15 +58,21 @@ const FormExtractor = {
    * @returns {object} { groupName: { fieldLabel: { domKey, label, fieldType, currentValue } } }
    */
   extractFieldMap() {
-    // 使用页面适配器
-    if (window.PageAdapters) {
-      const adapter = PageAdapters.detectAdapter();
-      if (adapter && adapter.extractFieldMap) {
-        return adapter.extractFieldMap();
-      }
+    // 委托 PageRegistry 激活的适配器
+    const adapter = PageRegistry.activate();
+    if (adapter && adapter.extractFieldMap) {
+      return adapter.extractFieldMap();
     }
 
     // 兜底：使用默认逻辑（baseInfoMerge）
+    return this._fallbackExtractFieldMap();
+  },
+
+  /**
+   * 默认字段映射兜底（baseInfoMerge 逻辑）
+   * @returns {object}
+   */
+  _fallbackExtractFieldMap() {
     const result = {};
     const cards = document.querySelectorAll('.content-card');
     cards.forEach(card => {
@@ -210,6 +223,18 @@ const FormExtractor = {
     const controlWrapper = item.querySelector('.ant-form-item-control');
 
     if (!controlWrapper) return null;
+
+    // 【新 · 阶段2】Registry 增量通道：遍历已注册 handler.detect，命中走 handler.extract（§5.7 Issue 7）
+    // 老的 15 种类型无 handler 注册 → handlers() 空或未命中 → 落到下面老识别逻辑，行为零变化
+    if (window.FieldTypeRegistry) {
+      for (const handler of FieldTypeRegistry.handlers()) {
+        if (typeof handler.detect === 'function' && handler.detect(item)) {
+          return handler.extract(item);
+        }
+      }
+    }
+
+    // 【老 · 冻结】以下类型识别逻辑不再新增分支，新类型一律 Registry 注册
 
     // 统计所有控件类型
     const numberInputs = controlWrapper.querySelectorAll('.ant-input-number');
@@ -819,3 +844,6 @@ const FormExtractor = {
     };
   }
 };
+
+if (typeof window !== 'undefined') { window.FormExtractor = FormExtractor; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = FormExtractor; }

@@ -292,32 +292,14 @@ ${fieldList}
 
   /**
    * 按国际版推荐理由规则清洗文本。
-   * 允许：中文、英文、数字、空白换行，以及指定全角/半角符号。
+   * 实现已抽出到 services/sanitizers.js 的 Sanitizers.internationalRules（阶段3）。
+   * 本方法保留为转发，维持原有方法签名向后兼容。
    * @param {string} text
    * @returns {string}
    * @private
    */
   _sanitizeForInternationalRules(text) {
-    if (!text) return '';
-
-    const mapped = String(text)
-      .replace(/:/g, '：')
-      .replace(/\(/g, '（')
-      .replace(/\)/g, '）')
-      .replace(/\+/g, '＋')
-      .replace(/&/g, '＆')
-      .replace(/\|/g, '｜')
-      .replace(/\//g, '／')
-      .replace(/~/g, '～')
-      .replace(/;/g, '；')
-      .replace(/[>＞]+/g, '—')
-      .replace(/[<＜]+/g, '');
-
-    // 允许字符：CJK、英文、数字、空白，以及用户指定符号。
-    return mapped
-      .replace(/[^一-鿿A-Za-z0-9\s，、：（）「」『』《》＋＆｜／—～；·.°%,-]/g, '')
-      .replace(/[ \t]+/g, ' ')
-      .trim();
+    return window.Sanitizers ? Sanitizers.internationalRules(text) : '';
   },
 
   /**
