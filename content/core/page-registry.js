@@ -69,6 +69,14 @@ const PageRegistry = {
     }
     FieldTypeRegistry.clearScoped();
     this._active = null;
+  },
+
+  /**
+   * 取当前激活适配器（供 panel 等复用：如调用 tourdays 的补卡钩子）
+   * @returns {object|null}
+   */
+  getActive() {
+    return this._active;
   }
 };
 

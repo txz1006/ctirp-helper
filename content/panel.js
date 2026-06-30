@@ -615,6 +615,28 @@ const ImportPanel = {
   _getDisplayValue(fieldData) {
     if (!fieldData) return '';
 
+    // 行程页专属字段（tourdays）：按 meta.role 取显示值，避免对象被 JSON.stringify
+    if (fieldData.fieldType === 'itineraryField') {
+      const role = fieldData.meta && fieldData.meta.role;
+      const v = fieldData.value;
+      if (v === null || v === undefined) return '';
+      if (role === 'radio') return String(v);
+      if (role === 'radioTime') {
+        const r = v.radio ?? '';
+        const t = Array.isArray(v.time) ? v.time.join(':') : '';
+        return r === '-1' ? (t || '具体时间') : r;
+      }
+      if (role === 'checkbox') return Array.isArray(v) ? v.join(',') : String(v);
+      if (role === 'select' || role === 'searchSelect') return (v && v.text) ? String(v.text) : '';
+      if (role === 'numberGroup' && v && Array.isArray(v.values)) {
+        const seps = v.separators || [];
+        return v.values.map((val, i) => (val ?? '') + (i < seps.length ? seps[i] : '')).join('');
+      }
+      if (role === 'number' || role === 'text') return String(v);
+      if (role === 'note' || role === 'title') return String(v).substring(0, 100) + (String(v).length > 100 ? '...' : '');
+      return typeof v === 'object' ? JSON.stringify(v) : String(v);
+    }
+
     // 推荐理由（productImageText 页面）
     if (fieldData.fieldType === 'recommendReason') {
       const category = fieldData.category?.text || '';
@@ -704,6 +726,10 @@ const ImportPanel = {
     this._initFillProgress();
 
     try {
+      // 导入前补齐卡片结构（仅 tourdays 行程描述页需要，决议 2A 时序）
+      // 补卡必须在逐字段 fill 之前批量完成，否则定位竞态
+      await this._ensureStructureBeforeFill(effectiveData);
+
       const result = await FormFiller.fillAll(effectiveData.data, (current, total, lastResult) => {
         // 实时更新进度
         this._updateFillProgress(current, total, lastResult);
@@ -711,12 +737,58 @@ const ImportPanel = {
 
       this._renderFillProgress(result);
 
+      // 填写完成后清理多余的默认空模板卡片（tourdays 专属，避免残留多余空卡）
+      await this._cleanupExcessCards(effectiveData);
+
       // 填写完成后自动回读验证
       const verifyReport = FormFiller.verify(effectiveData);
       this._renderVerifyReport(verifyReport);
       this._showSection('verify');
     } catch (e) {
       this._showMessage(`填写失败: ${e.message}`);
+    }
+  },
+
+  /**
+   * 导入前补齐页面卡片结构（tourdays 行程描述页专属）
+   * 若当前激活的页面适配器实现了 ensureAllStructure，则在 fillAll 前批量补齐卡片，
+   * 保证国际页卡片序列与国内导出结构一致后再逐字段填入（决议 1A/2A）。
+   * 其他页面适配器未实现该方法则跳过，零影响。
+   * @private
+   */
+  async _ensureStructureBeforeFill(effectiveData) {
+    const adapter = window.PageRegistry && window.PageRegistry.getActive
+      ? window.PageRegistry.getActive()
+      : null;
+    if (!adapter || typeof adapter.ensureAllStructure !== 'function') return;
+
+    try {
+      await adapter.ensureAllStructure(effectiveData, (msg) => {
+        this._showMessage(msg);
+      });
+    } catch (e) {
+      console.warn('[ImportPanel] 补齐卡片结构失败，继续按现有结构填写:', e.message);
+    }
+  },
+
+  /**
+   * 导入填写后清理多余的默认空模板卡片（tourdays 行程描述页专属）
+   * 国际版每天预置空模板卡，补齐+填写后超出源序列的空卡会被删除，避免残留。
+   * 适配器未实现 cleanupExcessCards 则跳过，零影响。
+   * @private
+   */
+  async _cleanupExcessCards(effectiveData) {
+    const adapter = window.PageRegistry && window.PageRegistry.getActive
+      ? window.PageRegistry.getActive()
+      : null;
+    if (!adapter || typeof adapter.cleanupExcessCards !== 'function') return;
+
+    try {
+      await adapter.cleanupExcessCards(effectiveData, (msg) => {
+        this._showMessage(msg);
+      });
+    } catch (e) {
+      console.warn('[ImportPanel] 清理多余卡片失败:', e.message);
     }
   },
 
@@ -805,6 +877,8 @@ const ImportPanel = {
         for (const fieldData of Object.values(groupData)) {
           if (fieldData && fieldData.domKey === domKey) {
             // 复杂类型不覆盖，保持原始结构；复合字段通过 data-field-path 单独回写。
+            // itineraryField（行程页）含 numberGroup/select/radio 等 meta.role 分发，
+            // value 结构是对象/数组，绝不能用预览输入框字符串覆盖。
             if (fieldData.fieldType === 'inputNumberGroup' ||
                 fieldData.fieldType === 'mixedGroup' ||
                 fieldData.fieldType === 'selectGroup' ||
@@ -812,7 +886,8 @@ const ImportPanel = {
                 fieldData.fieldType === 'multiSearchSelect' ||
                 fieldData.fieldType === 'customDisplay' ||
                 fieldData.fieldType === 'recommendReason' ||
-                fieldData.fieldType === 'richText') {
+                fieldData.fieldType === 'richText' ||
+                fieldData.fieldType === 'itineraryField') {
               continue;
             }
             if (fieldData.fieldType === 'searchSelect' && fieldData.value) {

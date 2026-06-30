@@ -7,7 +7,7 @@
 
 携程数据迁移助手 — Chrome Extension。在国内版携程商户后台页面**提取**表单数据为 JSON，在国际版页面**填入**表单实现数据迁移。
 
-**当前版本**：v0.3.0 + 架构重构阶段 0-3 已实施。已支持 baseInfoMerge（产品基础信息）和 productImageText（产品图文）两个页面的导出导入。
+**当前版本**：v0.3.0 + 架构重构阶段 0-3 已实施。已支持 baseInfoMerge（产品基础信息）、productImageText（产品图文）、tourdays（行程描述）三个页面的导出导入。tourdays 采用页面专属 `itineraryField` 类型 + 全 role scoped handler + 导入前补齐卡片结构，详见 [docs/TOURDAYS_ADAPTER_PLAN.md](docs/TOURDAYS_ADAPTER_PLAN.md)。
 
 **核心瓶颈**：后续还有 ~15 个页面要做。新增页面时不能影响已有页面功能。因此正在推进架构重构（[重构设计](docs/ARCHITECTURE_REFACTOR.md)）。
 
@@ -99,8 +99,11 @@ extension/
 │   ├── pages/
 │   │   ├── base-info-merge/
 │   │   │   └── adapter.js        # baseInfoMerge 适配器
-│   │   └── product-image-text/
-│   │       └── adapter.js        # productImageText 适配器
+│   │   ├── product-image-text/
+│   │   │   └── adapter.js        # productImageText 适配器
+│   │   └── tourdays/
+│   │       ├── adapter.js        # tourdays 适配器（全字段导出 + 补齐卡片 + 定位）
+│   │       └── field-handlers/itinerary-field.js  # itineraryField 全 role scoped handler
 │   ├── form-extractor.js         # 通用表单提取
 │   ├── form-filler.js            # 通用表单填充（含所有字段填写逻辑）
 │   ├── templates/                # 模板系统（CRUD + UI）
@@ -138,14 +141,15 @@ extension/
 | 7-8 | `antd1-filler.js` / `react-filler.js` | 底层填充器，被 form-filler 调用 |
 | 9 | `page-detector.js` | 国内外版本识别 |
 | 10-11 | `core/field-registry.js` / `core/page-registry.js` | 字段 Registry + 页面适配器注册表 |
-| 12-13 | `pages/*/adapter.js` | 页面适配器（加载即自注册） |
-| 14-15 | `form-extractor.js` / `form-filler.js` | 提取 + 填充 |
-| 16-21 | `templates/*.js` | 模板系统 |
-| 22 | `services/sanitizers.js` | AI 改写 / 富文本字符清洗 |
-| 23 | `ai-rewrite-dialog.js` | AI 改写 |
-| 24-25 | `export.js` / `import.js` | 导出/导入编排 |
-| 26 | `panel.js` | 导入面板 UI |
-| 27 | `main.js` | 入口，必须最后加载 |
+| 12-13 | `pages/base-info-merge/adapter.js`、`pages/product-image-text/adapter.js` | 页面适配器（加载即自注册） |
+| 14-15 | `pages/tourdays/adapter.js`、`pages/tourdays/field-handlers/itinerary-field.js` | tourdays 适配器 + itineraryField scoped handler（handler 在 adapter.activate 时注册） |
+| 16-17 | `form-extractor.js` / `form-filler.js` | 提取 + 填充 |
+| 18-23 | `templates/*.js` | 模板系统 |
+| 24 | `services/sanitizers.js` | AI 改写 / 富文本字符清洗 |
+| 25 | `ai-rewrite-dialog.js` | AI 改写 |
+| 26-27 | `export.js` / `import.js` | 导出/导入编排 |
+| 28 | `panel.js` | 导入面板 UI（tourdays 在确认填写后调 `adapter.ensureAllStructure` 补卡） |
+| 29 | `main.js` | 入口，必须最后加载 |
 
 ### 5.3 核心模块职责
 
@@ -157,13 +161,13 @@ extension/
 | `core/field-registry.js` | 新字段类型增量入口 | 老字段类型冻结，新字段类型通过 Registry 注册（fill/extract 双侧接入） |
 | `pages/*/adapter.js` | 各页面适配器 | 每个页面物理隔离，实现 `extract()` + `extractFieldMap()` |
 | `form-extractor.js` | 通用表单提取 | 15 种字段类型；委托给 PageRegistry；extract 侧 Registry 空跑接入 |
-| `form-filler.js` | 通用表单填充 | 入口 `_fillField()` 按字段类型分发；fill 侧 Registry 空跑接入；含智能匹配集成 |
+| `form-filler.js` | 通用表单填充 | 入口 `_fillField()` 按字段类型分发；fill 侧 Registry 空跑接入；含智能匹配集成。**已挂 `window.FormFiller`**，tourdays itineraryField handler 等跨文件通过 `window.FormFiller._fillPlainSelectByElement/_fillSearchSelect` 复用 |
 | `field-matcher.js` | 智能匹配引擎 | 三级策略 Exact(100)→Pattern(90)→Semantic(50)；策略自注册 |
 | `antd1-filler.js` | Ant Design 1.x 专配器 | 旧版组件（直接设 value + change 事件）；form-filler 优先调用 |
-| `react-filler.js` | React Fiber 填充器 | 通过 `__reactInternalInstance` 修改 fiber；antd1 失败时兜底 |
+| `react-filler.js` | React Fiber 填充器 | 通过 `__reactInternalInstance` 修改 fiber；antd1 失败时兜底。挂 `window.ReactFiller`/`window.AntD1Filler`，FillContext 经 `_buildContext()` 注入给 Registry handler |
 | `page-ue-bridge.js` | UEditor 主世界桥接 | 通过 `web_accessible_resources` 注入主世界，调用 `UE.setContent()` |
 | `ai-rewrite-dialog.js` | AI 改写对话框 | 用户在转换预览中勾选字段后触发；通过 background 代理调 LLM |
-| `panel.js` | 导入浮层面板 | 5 个状态：input→preview→match→filling→verify |
+| `panel.js` | 导入浮层面板 | 5 个状态：input→preview→match→filling→verify。`_collectPreviewEdits` 把复杂类型（含 `itineraryField`）加入跳过列表，避免预览输入框字符串覆盖对象值结构；tourdays 确认填写后调 `adapter.ensureAllStructure` 补卡、fillAll 后调 `adapter.cleanupExcessCards` 删多余空卡 |
 | `background/service-worker.js` | Service Worker | LLM API 代理（绕过 CORS）；初始化默认配置 |
 | `popup/` | 扩展弹窗 | 模式切换（auto/domestic/international）+ LLM 配置 + 最近状态 |
 | `rules/` | 转换规则 | 字段映射（JSON）+ 格式转换（JS 函数） |
@@ -176,6 +180,7 @@ extension/
 | 开发时要遵守的规则、字段三分类、常见陷阱、代码约定 | [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) |
 | 架构改造目标、重构路线图 | [docs/ARCHITECTURE_REFACTOR.md](docs/ARCHITECTURE_REFACTOR.md) |
 | 模板系统设计（v0.2） | [docs/TEMPLATE_SYSTEM_SPEC.md](docs/TEMPLATE_SYSTEM_SPEC.md) |
+| 行程描述页（tourdays）导入导出方案、补卡机制、全 role 填充 | [docs/TOURDAYS_ADAPTER_PLAN.md](docs/TOURDAYS_ADAPTER_PLAN.md) |
 | 架构重构执行状态、后续新增页面范式、已知边界 | [docs/ARCHITECTURE_REFACTOR.md](docs/ARCHITECTURE_REFACTOR.md) |
 
 ## 七、新 Agent 接手 checklist
@@ -194,6 +199,9 @@ extension/
 - **productImageText**（`/product/input/productImageText`）：
   - 国内版导出：确认推荐理由 + 产品特色（富文本）提取正常
   - 国际版导入：确认推荐理由分类+描述填入正常，富文本保存后不丢内容
+- **tourdays**（`/ivbk/vendor/tourdays`，行程描述）：
+  - 国内版导出：确认 JSON 含按天分组、每张卡片的全字段（标题/补充说明/行驶距离/用车类型/餐饮类型/景点类型 等，不止 textarea）
+  - 国际版导入：粘贴 JSON → 转换预览 → 匹配预览 → 确认填写（观察国际页按需新增景点/交通/餐饮/酒店卡片，补齐后再逐字段填入）
 
 ### 7.3 代码导航
 1. 读 `manifest.json` → 了解脚本加载顺序（§5.2）

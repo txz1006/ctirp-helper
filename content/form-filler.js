@@ -8,7 +8,6 @@
 const FormFiller = {
   /** 填写结果记录 */
   results: [],
-
   /**
    * 批量填写表单字段
    * @param {object} data - 转换后的字段数据 { groupName: { fieldName: { value, fieldType, ... } } }
@@ -980,7 +979,7 @@ const FormFiller = {
 
     const flatExpected = this._flattenFields(expectedFields);
     for (const field of flatExpected) {
-      const actual = this._findActualValue(actualData, field.domKey);
+      const actual = this._findActualValue(actualData, field.domKey, field);
       if (actual === undefined) {
         report.skipped.push({ field: field.label, domKey: field.domKey, reason: '字段未找到' });
       } else if (this._valuesMatch(actual, field.value)) {
@@ -1003,7 +1002,7 @@ const FormFiller = {
   /**
    * 在提取数据中查找对应字段的实际值
    */
-  _findActualValue(extractedData, domKey) {
+  _findActualValue(extractedData, domKey, expectedField) {
     for (const group of Object.values(extractedData.data)) {
       for (const field of Object.values(group)) {
         if (field && typeof field === 'object' && field.domKey === domKey) {
@@ -1011,7 +1010,19 @@ const FormFiller = {
         }
       }
     }
-    return undefined;
+
+    if (expectedField?.fieldType !== 'itineraryField') {
+      return undefined;
+    }
+
+    const meta = expectedField?.meta;
+    const label = expectedField?.label || expectedField?.fieldLabel || '';
+    if (!meta || !label || !window.tourdaysAdapter || typeof window.tourdaysAdapter.findValueByMeta !== 'function') {
+      return undefined;
+    }
+
+    const fallback = window.tourdaysAdapter.findValueByMeta(meta, label);
+    return fallback === undefined ? undefined : fallback;
   },
 
   /**
@@ -1064,7 +1075,25 @@ const FormFiller = {
     if (actualDisplay === expectedDisplay) return true;
 
     const normalize = value => String(value).replace(/\s+/g, '').trim();
-    return normalize(actualDisplay) === normalize(expectedDisplay);
+    if (normalize(actualDisplay) === normalize(expectedDisplay)) return true;
+
+    const normalizeZh = value => normalize(value)
+      .replace(/[國国]/g, '国')
+      .replace(/[際际]/g, '际')
+      .replace(/[機机]/g, '机')
+      .replace(/[場场]/g, '场')
+      .replace(/[車车]/g, '车')
+      .replace(/[門门]/g, '门')
+      .replace(/[點点]/g, '点')
+      .replace(/[觀观]/g, '观')
+      .replace(/[無无]/g, '无')
+      .replace(/[類类]/g, '类')
+      .replace(/[聖圣]/g, '圣')
+      .replace(/[魯鲁]/g, '鲁')
+      .replace(/[舊旧]/g, '旧')
+      .replace(/[費费]/g, '费')
+      .replace(/[亞亚]/g, '亚');
+    return normalizeZh(actualDisplay) === normalizeZh(expectedDisplay);
   },
 
   _delay(ms) {
@@ -1295,3 +1324,9 @@ const FormFiller = {
     }
   }
 };
+
+// 导出到全局，供 tourdays itineraryField handler 等（通过 window.FormFiller）复用
+// _fillPlainSelectByElement / _fillSearchSelect 等方法
+if (typeof window !== 'undefined') {
+  window.FormFiller = FormFiller;
+}

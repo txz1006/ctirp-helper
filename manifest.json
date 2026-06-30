@@ -58,6 +58,8 @@
         "content/core/page-registry.js",
         "content/pages/base-info-merge/adapter.js",
         "content/pages/product-image-text/adapter.js",
+        "content/pages/tourdays/adapter.js",
+        "content/pages/tourdays/field-handlers/itinerary-field.js",
         "content/form-extractor.js",
         "content/form-filler.js",
         "content/templates/template-storage.js",

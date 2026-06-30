@@ -1,67 +1,51 @@
 # 会话交接文档
 
-> 生成时间：2026-06-22
+> 生成时间：2026-06-28
 > 项目：携程数据迁移助手 (Ctrip Helper) Chrome Extension
 > Git 仓库：`extension/` 目录（独立 .git）
-> 上一份交接：2026-06-21（见本文件 git 历史，本文覆盖更新至 v0.5.1 评审后状态）
+> 上一份交接：2026-06-22（架构重构 v0.5.1 评审，见 git 历史）。本文覆盖更新至 tourdays 行程页导入导出实施完成状态。
 
 ---
 
 ## 一、本次会话完成的工作
 
-### 1.1 架构重构文档评审与重写（核心产出）
+### 1.1 tourdays 行程描述页导入导出完整实施（核心产出）
 
-对 `extension/docs/ARCHITECTURE_REFACTOR.md` 做了两轮 `/plan-eng-review`：
+按 `extension/docs/TOURDAYS_ADAPTER_PLAN.md` 完成行程页（`/ivbk/vendor/tourdays`）全字段导入导出。阶段 A/B 此前已完成，本次实施 **A2 全字段导出 + C 全 role 填充 + D 导入前补齐卡片**，并修了三轮真实页面 bug。
 
-**第一轮**：审查 v0.4.0 草稿，发现过度设计（18+ 新文件、6 个新抽象、全量迁移 15 种字段类型）。用户确认收窄方向后重写为 v0.5.0——Registry 改为增量通道（老冻结、新注册），砍掉 matchStrategy 声明式、dom/selectors.js、AIRewriteService 门面、全量 switch 迁移。
+**新增/改动文件：**
 
-**第二轮**：审查 v0.5.0 是否达标。发现 18 个 issue，全部修复，文档升级为 **v0.5.1**。关键修复：
-
-| Issue | 修复 |
+| 文件 | 说明 |
 |------|------|
-| 1 快照基线 | 改为纯函数输出（DOM 片段→字段对象），避开 jsdom 跑不出 React 受控值的问题 |
-| 2 extract 侧 | Registry 接入 `_extractFormItem`，fill/extract 双侧纯增量 |
-| 3 SPA 触发 | 明确 PageRegistry.activate 三触发点（初始化/按钮点击前/URL 变化） |
-| 5 版本关系 | URL 选适配器，适配器内 PageDetector 判版本 |
-| 6 FillContext | 定义 ctx 注入 AntD1Filler/ReactFiller/FieldMatcher/delay |
-| 7 detect 机制 | FieldHandler 提供可选 detect，_extractFormItem 遍历注册 handler |
-| 8 适配器示例 | 补 §5.5 完整 adapter.js 示例 |
-| 9 extract 委托 | 明确 FormExtractor.extract 改走 PageRegistry.activate |
-| 10 全局导出 | 补 §5.6 模块导出与全局名称约定 |
-| 11 阶段3 范围 | 砍掉 recommendReason/richText 重写，只抽 Sanitizers |
-| 12-13 测试/异常 | §8 补新 handler 测试要求，§5.2 明确异常边界 |
-| 16 状态图 | 补机制α ASCII 状态机图 |
+| `content/pages/tourdays/adapter.js` | 重写：A2 全字段导出（复用 `FormExtractor._extractFormItem`，radio/checkbox 覆盖提取选中项 value，顶层 form-item 避开 inputNumberGroup 嵌套重复计数）；卡片类型识别用图标容器 `Icon{Type}` + 标题文本兜底（`_readCardTitle` 用 `card-title-flex` 取标题，跳过 `card-title-icon`）；阶段 D `ensureAllStructure`/`_addCardAt`（直接点 project-select 项目按钮插入，`intlCursor` 游标推进）；`findElementByMeta` 定位；`cleanupExcessCards`/`_deleteCard`/`_confirmDeleteIfPresent` 删多余空卡 |
+| `content/pages/tourdays/field-handlers/itinerary-field.js` | 新建（替换旧 `itinerary-textarea.js`）：全 role 填充 handler，type 统一 `itineraryField`。`fillNumber`/`fillNumberGroup`/`fillInput` 走 ReactFiller 预热 + 原生 setter+input/change/blur 双保险；条件渲染字段 300/600/1000ms 退避重试定位 |
+| `content/form-filler.js` | **末尾加 `window.FormFiller = FormFiller`**（关键：tourdays handler 跨文件复用 `_fillPlainSelectByElement`/`_fillSearchSelect` 必须挂 window） |
+| `content/panel.js` | `_collectPreviewEdits` 跳过列表加 `itineraryField`（避免预览字符串覆盖对象值）；`_getDisplayValue` 加 itineraryField 按 meta.role 取值分支；确认填写后调 `ensureAllStructure` 补卡、fillAll 后调 `cleanupExcessCards` |
+| `content/core/page-registry.js` | 加 `getActive()` 供 panel 取当前适配器 |
+| `manifest.json` | handler 脚本路径 `itinerary-textarea.js` → `itinerary-field.js` |
+| `docs/TOURDAYS_ADAPTER_PLAN.md` | 更新实施状态（A2/C/D ✅）、补卡真实交互修正、新增多条实施说明 |
+| `CLAUDE.md` | §5.2 脚本顺序表、§5.3 模块职责补 FormFiller window 暴露 + panel 补卡/清理钩子说明 |
+| `DEVELOPMENT_GUIDE.md` | §3.4 补 itineraryField 跳过 + 取值分支；新增 §3.10 tourdays 专属陷阱多条（卡片识别 / 嵌套 form-item / 条件渲染 / React 受控写入 / window.FormFiller / 补卡删除真实交互 / moduleBlock / radioTime） |
 
-**结论**：文档已达可执行标准——凭文档即可知道如何改造，四个目标（可维护/扩展/简化开发/不影响老页面）均有可验证落点。Eng Review CLEAR（0 unresolved，0 critical gaps）。
+**测试：** `test/snapshots/tourdays-adapter-test.js`（32 用例）+ `test/snapshots/itinerary-field-handler-test.js`（14 用例）。全量 **6 套件 / 76 用例全绿**。
 
-### 1.2 TODOS.md 更新
+### 1.2 四轮真实页面 bug / 需求修复
 
-新增 3 条架构相关 TODO（`vtrip/TODOS.md` 末尾"架构重构相关"小节）：
+用户在 Chrome 手动回归 + `extension/docs/需求问题1.txt` 追加需求后，累计定位并修复四轮问题：
 
-- productImageText 页面快照基线（依赖用户提供 HTML 样本）
-- SPA 路由变化监听补强（main.js MutationObserver 扩展）
-- form-filler/extractor switch 解冻条件（记录触发条件，非实际迁移）
+| 用户报错 / 新需求 | 根因 | 修复 |
+|---------|------|------|
+| select 报"FormFiller._fillPlainSelectByElement 不可用" | form-filler.js 从未挂 window，handler 跨文件取 `window.FormFiller` 为 undefined | 加 `window.FormFiller = FormFiller` |
+| 大量字段"未找到"（集合/行驶时间/用餐时长/景点类型等） | `_readCardTitle` 用 `[class*="card-title--"]` 误命中 `card-title-icon`（图标容器无文本）→ 集合等无 Icon 类卡片识别成 other → 补卡后 findElementByMeta 找不到 | `_readCardTitle` 改用 `card-title-flex`，兜底跳过 icon；`_titleToKind` 补繁体 |
+| verify "期望 { 实际 0时0分" | `_collectPreviewEdits` 没跳过 itineraryField → numberGroup 对象值被预览字符串覆盖；`_getDisplayValue` 不识别 itineraryField 落 JSON.stringify | 跳过列表加 itineraryField；`_getDisplayValue` 加 role 取值分支；number/input 走双保险确保 React 状态写入 |
+| 集合卡多套子表单（`需求问题1.txt` 问题1） | checkbox 多选（集合点/上门接/接机站）会展开多套子表单，module-title 分隔，同名字段（如多个"用车类型"）导出 key 冲突互相覆盖 | `_parseCardItems` 跟踪 `moduleBlock`（前一个 module-title）；同卡内 label 重复时用 `moduleBlock` 前缀去重 label（如"设置接机/站 用车类型"），单套时保持原标签兼容 |
+| 交通/餐饮/酒店的"时间"字段（`需求问题1.txt` 问题2） | 结构不是普通 radio 或 select，而是 radio-group（N/D/M/A/E/-1）+ 选 `-1`（具体时间）时展开两个 select（时/分）；`_extractFormItem` 误判成 `selectGroup`，radio 选中值丢失 | 新增 tourdays 专属 `radioTime` 复合提取：导出 `{ radio, time:[时,分] }`；handler `fillRadioTime` 导入时先选 radio，再在 `radio === '-1'` 时填两个 select |
 
-### 1.3 新建 skill：dev-spec-author
+### 1.3 补卡/删除真实交互确认
 
-路径：`C:\Users\Administrator.DESKTOP-T4USVJU\.claude\skills\dev-spec-author\`
-
-```
-dev-spec-author/
-├── SKILL.md                      # 双模式：创建模式 + 审查模式
-└── references/
-    ├── template.md               # 开发文档 10 节模板
-    └── review-checklist.md       # 审查 6 维度清单
-```
-
-**用途**：生成或审查"面向 AI Agent 执行的需求开发文档"。创建模式通过结构化访谈产出可交付 Agent 执行的文档；审查模式补缺口、纠过度设计、核实代码引用。基于本会话评审 ARCHITECTURE_REFACTOR.md 的经验提炼。
-
-**状态**：v1 草稿完成，未跑测试用例验证。用户选择 vibe 模式（定性迭代，不跑量化 benchmark）。建议的下一步是用真实提示词试跑迭代（见 §四）。
-
-### 1.4 评审产物
-
-- 测试计划：`~/.skill-data/projects/vtrip/Administrator-vtrip-test-plan-20260622.md`
-- 评审日志：`~/.skill-data/logs/vtrip/review-log.txt`
+- **补卡**：用户确认——直接点击 add-box 内 `[id$="project-select-{type}"]` 项目按钮即触发 React onClick 插入卡片，**无需先点加号**（项目按钮始终在 DOM）。
+- **删除**：点"删除"按钮后真实页面弹 AntD 确认框，`_confirmDeleteIfPresent` 兼容 Modal.confirm/Popconfirm，按文案"确定/確認"点确认。
+- **多余默认卡**：国际版每天预置空模板卡（餐饮×3+酒店），补齐+填写后 `cleanupExcessCards` 删超出源序列且空的卡，有内容的保留。
 
 ---
 
@@ -69,80 +53,84 @@ dev-spec-author/
 
 ### 2.1 本会话改动文件（未提交）
 
-| 文件 | 状态 | 说明 |
-|------|------|------|
-| `extension/docs/ARCHITECTURE_REFACTOR.md` | 重写 | v0.4.0 → v0.5.1，补 18 个 issue |
-| `vtrip/TODOS.md` | 追加 | 末尾加 3 条架构相关 TODO |
-| `~/.claude/skills/dev-spec-author/` | 新建 | 新 skill（在用户全局目录，非项目内） |
+全部在 `extension/` 工作树，未 commit（按约定用户测试确认后才提交）：
 
-**注意**：本次会话**未改动任何 content/ 下的代码文件**。所有工作集中在文档、TODO、skill。代码仍是 v0.3.0 状态（上一份交接 §2.1 的未提交变更仍适用）。
+- `content/pages/tourdays/adapter.js`（重写）
+- `content/pages/tourdays/field-handlers/itinerary-field.js`（新建，旧 `itinerary-textarea.js` 已删）
+- `content/form-filler.js`（加 window 暴露）
+- `content/panel.js`（补卡/清理/预览保护）
+- `content/core/page-registry.js`（加 getActive）
+- `manifest.json`（handler 路径）
+- `docs/TOURDAYS_ADAPTER_PLAN.md`、`CLAUDE.md`、`DEVELOPMENT_GUIDE.md`（文档更新）
 
-### 2.2 上一份交接的未提交变更（仍有效）
+### 2.2 架构重构状态
 
-`CLAUDE.md`/`PRD.md`/`DEVELOPMENT_GUIDE.md`/`form-filler.js`/`panel.js`/`page-ue-bridge.js`/`manifest.json` 的未提交修改仍在工作树（见上一份交接 §2.1）。本会话未触碰。
+`ARCHITECTURE_REFACTOR.md` v0.5.1 是设计稿。**阶段 0-3 已部分实施**（Registry 增量通道、page-adapters 拆 pages/<page>/、机制α URL 激活均已落地，tourdays 是首个全程走 Registry scoped handler 的新页面）。剩余重构项见该文档 §6。
 
-### 2.3 架构重构尚未动代码
+### 2.3 测试基线
 
-`ARCHITECTURE_REFACTOR.md` v0.5.1 是设计稿，**未开始实施**。实施分三阶段（文档 §6）：
-
-- 阶段0：建立回归基线（纯函数快照）——未开始
-- 阶段1：物理隔离 page-adapters → pages/<page>/ ——未开始
-- 阶段2：Registry 增量通道（fill + extract 双侧）——未开始
-- 阶段3：抽 Sanitizers ——未开始
+- `npm test`（在父目录 `vtrip/` 下跑）：6 套件 / 73 用例全绿
+- tourdays 真实 HTML 冒烟：解析 10 天、前 3 天有标题与卡片内容
+- jsdom 模拟验证：补卡游标顺序与国内源一致、numberGroup 填入 `["0","40"]`、卡片 kind 识别全对
 
 ---
 
 ## 三、关键决策与约束
 
-### 3.1 架构决策（v0.5.1，已评审通过）
+### 3.1 tourdays 设计决策（见 TOURDAYS_ADAPTER_PLAN.md 评审决议）
 
-完整记录见 `extension/docs/ARCHITECTURE_REFACTOR.md` §3。核心：
+- **1A 顺序补齐**：按国内导出序列顺序逐个对齐，保证两边同类型同序号卡片视觉位置一致
+- **2A 第 i 个 add-box 定位** + 真实交互修正：直接点 project-select 项目按钮（非先点加号）
+- **3A radio/checkbox 全未选不导出**：checkbox 导出选中项 value 数组
+- **fieldType 统一 `itineraryField`**：按 `meta.role`（title/note/text/number/numberGroup/radio/checkbox/select/searchSelect）分发
+- **itemIndex 定位**：导出和导入都用 `_parseCardItems` 顶层 form-item 顺序索引，国内/国际序列一致（已验证）
 
-- **D3 Registry 定位**：增量通道，老 15 种类型冻结在 switch，新类型注册加入
-- **D2 绞杀法**：不动现有可用代码，新类型走 Registry 纯增量
-- **双侧接入**：fill（form-filler._fillField）+ extract（form-extractor._extractFormItem）都接 Registry
-- **机制α**：URL 激活单适配器，三触发点（初始化/按钮前/SPA URL 变化）
+### 3.2 必须遵守的约束（不变）
 
-### 3.2 被否方案（NOT in scope）
-
-文档 §3.1 + §10 列明：matchStrategy 声明式、dom/selectors.js、AIRewriteService 门面、全量 switch→Registry 迁移、field-detector.js 强制抽、阶段3 重写 recommendReason/richText。每项附"何时重新考虑"。
-
-### 3.3 必须遵守的约束（不变）
-
-- 第一性约束：新页面开发绝不能影响已有页面功能
+- 第一性约束：新页面开发绝不能影响已有页面功能（baseInfoMerge/productImageText 回归全绿）
 - 复合行字段不碰 FieldMatcher，走 `label[for]` 行级定位
 - 代码修改后：`node --check` + `npm test` + 手动回归
 - 提交时机：用户测试确认后、明确说"提交"时才 commit
+- 修改代码后重新加载扩展 + **关闭再重开**携程后台标签页（content script 被旧扩展持有）
+
+### 3.3 tourdays 已知边界（待手动回归确认）
+
+- 补卡点击、React onChange、删除确认框这些 jsdom 跑不了真实 React，需 Chrome 回归
+- 集合卡条件渲染子项（接机/站地址等）依赖勾选"接机/站"后 React 渲染，handler 有退避重试但真实渲染时长需观察
+- 集合卡多套子表单（集合点/上门接/接机站）在真实国际页面是否都按 `moduleBlock` 正确展开并填入，需 Chrome 验证
+- `radioTime`（时间 radio + 时/分 select）已实现导出/导入，但真实页面 select 选项文本匹配（如 `08/00`）需手动回归确认
+- 国际页多余默认空卡清理：只删超出源序列且空的卡，有内容保留
 
 ---
 
 ## 四、下一步建议
 
-### 4.1 若继续架构重构（推荐起点）
+### 4.1 tourdays 收尾（最可能继续点）
 
-按 `ARCHITECTURE_REFACTOR.md` §6 阶段0 开始：
+用户上一轮报的三轮问题 + `需求问题1.txt` 的两项新增需求已在代码层修复，但**尚未在 Chrome 重新回归确认**。下一步：
 
-1. 从 `extension/国内产品基础信息tab.txt`（100KB，已存在）抠代表性 form-item DOM 片段为 fixture
-2. 建 `test/fixtures/form-items/` + `test/snapshots/extract-snapshot-test.js`
-3. 固化 `_extractFormItem` 等纯函数的输入输出基线
-4. 跑通后进入阶段1（拆 page-adapters）
+1. 重新加载扩展 + 关闭重开 tourdays 国际版页面
+2. 粘贴国内导出 JSON → 转换预览 → 匹配预览 → 确认填写
+3. 重点观察：
+   - 补卡是否正确新增集合/交通/景点等卡片
+   - 集合卡多套子表单（设置集合点 / 设置上门接范围 / 设置接机/站）是否都展开并按 `moduleBlock` 正确填入
+   - 交通/餐饮/酒店的 `radioTime`（时间 + 时/分）是否写入
+   - 行驶时间/活动时长/用餐时长等 numberGroup 是否持久化
+   - 多余默认空卡是否被清理
+   - verify 是否全绿
+4. 若仍有字段"未找到"，把 Console 里 `[tourdaysAdapter]` 的 warn 贴出（会显示哪个 day/kind/occ 找不到），针对性调
 
-**注意**：productImageText 的快照基线依赖用户提供 HTML 样本（见 TODOS.md）。阶段0 可先只做 baseInfoMerge。
+### 4.2 若回归通过 → 提交
 
-### 4.2 若继续 dev-spec-author skill
+用户明确说"提交"时，按 `feat: tourdays 行程页导入导出` 提交。Commit 前跑 `node --check` + `npm test`。
 
-用户选了 vibe 模式。建议：
+### 4.3 若继续新页面开发
 
-1. 用真实提示词试跑（三个候选用例已设计好，见上一轮对话末尾）：
-   - 创建模式-功能开发：tourdays 页面适配器开发文档
-   - 创建模式-重构：抽离 Sanitizers 开发文档
-   - 审查模式：审查 ARCHITECTURE_REFACTOR.md
-2. 先跑用例1（带 skill），看产出质量决定是否迭代
-3. 迭代方向：访谈是否触发、文档结构是否完整、代码引用是否核实、验收是否可运行
+后续还有 ~15 个页面。tourdays 是首个全程走 Registry scoped handler 的新页面，其模式（页面专属 fieldType + scoped handler + 补卡/清理钩子）可作后续页面范式。参考 `TOURDAYS_ADAPTER_PLAN.md` + `DEVELOPMENT_GUIDE.md §3.10`。
 
-### 4.3 若继续业务开发
+### 4.4 架构重构剩余项
 
-用户可能直接给新页面 HTML+JSON 样本。按 CLAUDE.md §八工作流：分析字段类型 → 开发 → 用户手动验证 → 提交。此时可触发 dev-spec-author 创建模式产出开发文档。
+`ARCHITECTURE_REFACTOR.md` §6 剩余阶段（若用户要继续）：阶段3 抽 Sanitizers 已完成；其他页面迁移到 pages/<page>/ 物理隔离可逐步推进。
 
 ---
 
@@ -152,12 +140,12 @@ dev-spec-author/
 
 | 场景 | 技能 | 说明 |
 |------|------|------|
-| 继续架构重构实施 | `executing-plans` | ARCHITECTURE_REFACTOR.md §6 可作为执行计划加载 |
-| 产出/审查开发文档 | `dev-spec-author` | 本会话新建，v1 未验证，建议先试跑 |
-| 架构深度评审 | `plan-eng-review` | 已对 ARCHITECTURE_REFACTOR.md 跑过，CLEAR |
-| 需求未明确先探讨 | `brainstorming` / `grill-me` | 想清楚再写文档 |
-| 代码审查 | `chinese-code-review` / `code-review` | 改完代码后 |
+| tourdays 回归调试 | `systematic-debugging` | 用户报字段未找到/select 报错时，按 jsdom 模拟 + 真实 DOM 对比定位 |
+| 代码审查 | `code-review` / `chinese-code-review` | 改完代码后审查 tourdays adapter/handler |
+| 验证完成 | `verification-before-completion` | 声称修复前跑 npm test + node --check 确认 |
 | 提交 | `commit` | 用户明确说"提交"时 |
+| 新页面开发前探讨 | `brainstorming` | 想清楚字段类型/定位策略再写 |
+| 产出开发文档 | `dev-spec-author` | tourdays 已有 PLAN，新页面可复用该模式产出 |
 
 ---
 
@@ -165,9 +153,9 @@ dev-spec-author/
 
 新 Agent 打开项目后，按顺序读取：
 
-1. `extension/CLAUDE.md` → 项目全貌
-2. `extension/docs/ARCHITECTURE_REFACTOR.md` → 重构目标（v0.5.1，已评审通过，待实施）
-3. `vtrip/TODOS.md` → 架构相关 TODO（末尾小节）
-4. 本文件 → 了解上一轮评审结论与 skill 产出
+1. `extension/CLAUDE.md` → 项目全貌（已更新 tourdays 三页面支持 + FormFiller window 暴露）
+2. `extension/docs/TOURDAYS_ADAPTER_PLAN.md` → 行程页方案（A2/C/D ✅ + 实施说明）
+3. `extension/DEVELOPMENT_GUIDE.md` §3.10 → tourdays 专属陷阱多条（避免重踩）
+4. 本文件 → 了解本次实施与三轮 bug 修复
 
-**关键判断**：若用户说"继续重构"→ 从 §4.1 阶段0 开始；若用户说"试跑 skill"→ 从 §4.2 开始；若用户给新页面样本 → 触发 dev-spec-author 创建模式。
+**关键判断**：若用户说"继续 tourdays"/"还有字段没填"→ 从 §4.1 回归调试开始；若用户说"提交"→ §4.2；若用户给新页面样本 → §4.3 参照 tourdays 模式。
