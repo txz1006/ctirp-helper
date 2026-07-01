@@ -228,6 +228,18 @@ extension/
 2. 测试通过后 → 用户明确说"提交"才 commit
 3. 绝不自动提交
 
+### 版本号规则
+
+每完成一个新的页面导入导出适配，并且用户手动回归确认通过后，版本号 +1。当前约定按 minor 递增：`v0.3.0 → v0.4.0 → v0.5.0`。
+
+必须同步修改三处：
+
+- `extension/manifest.json` 的 `"version"`
+- 父目录 `vtrip/package.json` 的 `"version"`
+- `extension/CLAUDE.md` §一 "当前版本：vX.Y.Z" 文案
+
+注意：小修小补、bugfix、文档补充不触发页面适配版本递增；只有完成一个新页面的导入导出适配并经用户确认后才递增。
+
 ### 代码约定（详见 [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)）
 
 - **字段三分类**：单控件 / 复合行 / 专用复合，物理隔离（[§1.2](DEVELOPMENT_GUIDE.md#12-字段类型三分类重要)）
